@@ -10,14 +10,14 @@ setup() {
 }
 
 # array::is_empty
-@test 'Validate array::is_empty succeeds with an empty array' {
+@test 'array::is_empty succeeds with an empty array' {
 	test_array=()
 
 	run array::is_empty "${test_array[@]}"
 	assert_success
 }
 
-@test "Validate array::is_empty fails with a full array" {
+@test "array::is_empty fails with a full array" {
 	test_array=('black' 'red' 'gold')
 
 	run array::is_empty "${test_array[@]}"
@@ -25,7 +25,7 @@ setup() {
 }
 
 # array::contains
-@test "Validate array::contains succeeds with a valid element" {
+@test "array::contains succeeds with a valid element" {
 	test_array=('black' 'red' 'gold')
 	test_element=black
 
@@ -33,7 +33,7 @@ setup() {
 	assert_success
 }
 
-@test "Validate array::contains fails with an invalid element" {
+@test "array::contains fails with an invalid element" {
 	test_array=('black' 'red' 'gold')
 	test_element=blue
 
