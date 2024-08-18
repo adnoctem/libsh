@@ -1,4 +1,4 @@
-# BASH Library <img src="https://raw.githubusercontent.com/fmjstudios/artwork/main/projects/bashlib/icon/bash-icon-color.png" alt="Bash Logo" align="right" width="225"/>
+# Bash Library <img src="https://raw.githubusercontent.com/fmjstudios/artwork/0fbaea26cdaae204c9e6a03e5ec61d42d7b60cf7/projects/bashlib/icon/color/bash-icon-color.png" alt="Bash Logo" align="right" width="225"/>
 
 [![GitHub top language](https://img.shields.io/github/languages/top/fmjstudios/bashlib)](https://www.gnu.org/software/bash/)
 [![GitHub License](https://img.shields.io/github/license/fmjstudios/bashlib?label=License)](https://opensource.org/license/mit)
@@ -16,7 +16,7 @@ re-use.
 
 ## ✨ TL;DR
 
-```bash
+```shell
 ./scripts/run.sh Arg1 # look at any shell tutorial if this confuses you
 ```
 
