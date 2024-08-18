@@ -13,6 +13,7 @@
 
 ## 💡 Ideas
 
+- Potentially introduce a new top-level `lib` "namespace" to functions from library scripts
 - Add public URL to use the `install` executable like `get.bashlib.fmj.studio` using GitHub Pages
 
 ## 🔗 Links
@@ -25,4 +26,5 @@
 
 - [Docker's Install script](https://github.com/docker/docker-install)
 - [Starship's Install script](https://github.com/starship/starship/blob/master/install/install.sh)
-- [PNPM's INstall script](https://github.com/pnpm/get.pnpm.io/blob/main/install.sh)
+- [PNPM's Install script](https://github.com/pnpm/get.pnpm.io/blob/main/install.sh)
+- [nvm's Install script](https://github.com/nvm-sh/nvm/blob/master/install.sh)
