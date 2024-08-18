@@ -239,7 +239,7 @@ gitleaks:
 shellcheck:
 	@shellcheck scripts/*.sh -x
 	@shellcheck lib/*.sh -x
-	@shellcheck bin/* -x
+	@shellcheck bin/install bin/libtree -x
 
 .PHONY: shfmt
 shfmt:
