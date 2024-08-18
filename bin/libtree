@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+#
+# Install `bashlib`s library sources into a subdirectory within your repository with Git Subtree.
+# This script largely relies on community provided sources (GitHub Gist) for the actual Git
+# logic.
+#
+# This is a self-contained Bash script, shipped and used as an executable. Install with the following command:
+#
+# curl -sLJO https://github.com/fmjstudios/bashlib/bin/libtree
+#
+# ref: https://gist.github.com/tswaters/542ba147a07904b1f3f5
+
+# -------------------------
+#   GLOBAL defaults
+# -------------------------
+REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
+DESTINATION="scripts/lib"
+
+UPSTREAM_REMOTE_NAME="bashlib-upstream"
+UPSTREAM_REMOTE_BRANCH="main"
+UPSTREAM_BRANCH="upstream/bashlib"
+MERGING_BRANCH="merging/bashlib"
+DEFAULT_BRANCH="main"
+
+# -------------------------
+#   Utility functions
+# -------------------------
+
+# Write un-colored output to stdout
+log() {
+	if [[ $# -eq 1 ]]; then
+		echo -e "$1" &>/dev/null
+	else
+		echo -e "\033[1;${1}${2}\033[0m"
+	fi
+}
+
+# Write red output to stdout
+log::red() {
+	log "31m" "${1}"
+}
+
+# Write yellow output to stdout
+log::yellow() {
+	log "33m" "${1}"
+}
+
+# Write green output to stdout
+log::green() {
+	log "32m" "${1}"
+}
+
+# Check if a package is installed
+package::is_executable() {
+	local package=${1}
+	if [[ -z "$package" ]]; then
+		return 1
+	fi
+	command_package=$(command -v "$package")
+	if [[ -z "$command_package" ]]; then
+		return 1
+	fi
+	return 0
+}
+
+# Check if a remote exists
+git::remote_exists() {
+	remote=${1}
+
+	git remote show | grep -E "$remote"
+	rc=$?
+
+	return $rc
+}
+
+# Check if a branch exists
+git::branch_exists() {
+	branch=${1}
+
+	git branch -l | grep -E "$branch"
+	rc=$?
+
+	return $rc
+}
+
+# Ensure a base-directory for a given path exists
+paths::ensure_existence() {
+	local path=${1}
+
+	if [[ ! -e "${path}" ]]; then
+		mkdir -p "$(dirname "${path}")"
+	fi
+}
+
+# Check if the required dependencies for the scripts are installed.
+function libtree::checks() {
+	if [[ $(pwd) != "$REPOSITORY_ROOT" ]]; then
+		log::red "libtree must be run from the root of your repository! Exiting.."
+		exit 1
+	fi
+
+	package::is_executable git
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		log::red "Could not find package \"git\" in system PATH. Please install \"git\" to use 'libtree'!"
+		exit 1
+	fi
+}
+
+#######################################
+# Print the usage output for the script.
+# Globals:
+#   None
+# Arguments:
+#   None
+# Outputs:
+#   Writes usage to stdout
+#######################################
+function libtree::usage() {
+	local script_name
+
+	script_name=$(basename "${0}")
+
+	echo "$script_name"
+	echo
+	echo "Pull bashlib's library sources into your repository with Git Subtree."
+	echo "By default the sources are pulled into scripts/lib in your working directory."
+	echo
+	echo "Usage: ./scripts/$script_name <DESTINATION>"
+	echo
+	echo "help    - Print this usage information"
+	echo "pull    - Pull the upstream bashlib sources"
+	echo "update  - Update the upstream bashlib sources"
+	echo "clean   - Delete the upstream and merging branches/remotes."
+	echo
+	echo "Examples:"
+	echo "  ./scripts/$script_name pull (with configured or default Globals)"
+	echo "  ./scripts/$script_name pull src/lib"
+	echo "  ./scripts/$script_name update (with configured or default Globals)"
+	echo "  ./scripts/$script_name update src/lib"
+	echo "  ./scripts/$script_name clean"
+}
+
+#######################################
+# Pull the upstream sources.
+# Globals:
+#   DESTINATION
+#		UPSTREAM_BRANCH
+#		UPSTREAM_REMOTE_NAME
+#		UPSTREAM_REMOTE_BRANCH
+#		MERGING_BRANCH
+#		DEFAULT_BRANCH
+# Arguments:
+#   A destination file path to pull the
+#   source files to.
+# Returns:
+#   The parent return value of the latest
+#   'git' operation.
+#######################################
+function libtree::pull() {
+	local destination_path
+	destination_path=${1:-"$DESTINATION"}
+
+	# add bashlib remote, create a new tracking branch
+	git::remote_exists "$UPSTREAM_REMOTE_NAME"
+	rrc=$?
+
+	if [[ $rrc -eq 1 ]]; then
+		git remote add -f "$UPSTREAM_REMOTE_NAME" https://github.com/fmjstudios/bashlib.git
+	else
+		log::yellow "Your repository already has the remote $UPSTREAM_REMOTE_NAME. Skipping re-creation."
+	fi
+
+	git::branch_exists "$UPSTREAM_BRANCH"
+	brc=$?
+
+	if [[ $brc -eq 1 ]]; then
+		git checkout -b "$UPSTREAM_BRANCH" "$UPSTREAM_REMOTE_NAME/$UPSTREAM_REMOTE_BRANCH"
+	else
+		log::yellow "Your repository already has the branch $UPSTREAM_BRANCH. Skipping re-creation."
+	fi
+
+	# split off subdir of tracking branch into separate branch
+	git subtree split -q --squash --prefix=lib --annotate="[bashlib] " --rejoin -b "$MERGING_BRANCH"
+
+	# add separate branch as subdirectory on main.
+	git checkout "$DEFAULT_BRANCH"
+	git subtree add --prefix="$destination_path" --squash "$MERGING_BRANCH"
+}
+
+#######################################
+# Update the upstream sources.
+# Globals:
+#   DESTINATION
+#		UPSTREAM_BRANCH
+#		UPSTREAM_REMOTE_NAME
+#		UPSTREAM_REMOTE_BRANCH
+#		MERGING_BRANCH
+#		DEFAULT_BRANCH
+# Arguments:
+#   An (existing) destination file path
+#   to update.
+# Returns:
+#   The parent return value of the latest
+#   'git' operation.
+#######################################
+function libtree::update() {
+	local destination_path
+
+	destination_path=${1:-"$DESTINATION"}
+	if [ ! -d "$destination_path" ]; then
+		log::red "Destination path \"$destination_path\" does not exist! Cannot update non-existent sources."
+		log::yellow "Be sure to run \"libtree pull\" before running \"... update\"!"
+		exit 1
+	fi
+
+	# switch back to tracking branch, fetch & rebase.
+	git checkout $UPSTREAM_BRANCH
+	git pull "$UPSTREAM_REMOTE_NAME/$UPSTREAM_REMOTE_BRANCH"
+
+	# update the separate branch with changes from upstream
+	git subtree split -q --prefix=lib --annotate="[bashlib] " --rejoin -b "$MERGING_BRANCH"
+
+	# switch back to master and use subtree merge to update the subdirectory
+	git checkout "$DEFAULT_BRANCH"
+	git subtree merge -q --prefix=lib --squash "$MERGING_BRANCH"
+}
+
+#######################################
+# Remove the upstream and merging branches
+# as well as the upstream remote.
+# Globals:
+#   DESTINATION
+# Arguments:
+#   None
+# Returns:
+#   The parent return value of the latest
+#   'git' operation.
+#######################################
+function libtree::clean() {
+	# delete the bashlib-upstream remote
+	git::remote_exists "$UPSTREAM_REMOTE_NAME"
+	rrc=$?
+	if [[ $rrc -eq 1 ]]; then
+		log::yellow "Your repository does not have the remote $UPSTREAM_REMOTE_NAME. Skipping deletion of non-existent remote."
+	else
+		git remote rm "$UPSTREAM_REMOTE_NAME"
+	fi
+
+	# delete the upstream/bashlib branch
+	git::branch_exists "$UPSTREAM_BRANCH"
+	burc=$?
+	if [[ $burc -eq 1 ]]; then
+		log::yellow "Your repository does not have the branch $UPSTREAM_BRANCH. Skipping deletion of non-existent branch."
+
+	else
+		git branch -D "$UPSTREAM_BRANCH"
+	fi
+
+	# delete the merging/bashlib branch
+	git::branch_exists "$MERGING_BRANCH"
+	bmrc=$?
+	if [[ $bmrc -eq 1 ]]; then
+		log::yellow "Your repository does not have the branch $MERGING_BRANCH. Skipping deletion of non-existent branch."
+
+	else
+		git branch -D "$MERGING_BRANCH"
+	fi
+}
+
+# --------------------------------
+#   MAIN
+# --------------------------------
+function main() {
+	local cmd=${1}
+
+	libtree::checks
+
+	case "${cmd}" in
+	help)
+		libtree::usage
+		;;
+	pull)
+		libtree::pull "${@:2}"
+		return $?
+		;;
+	update)
+		libtree::update "${@:2}"
+		return $?
+		;;
+	clean)
+		libtree::clean
+		return $?
+		;;
+	*)
+		log::yellow "Unknown command: ${cmd}. See 'help' command for usage information:"
+		libtree::usage
+		return $?
+		;;
+	esac
+}
+
+# ------------
+# 'main' call
+# ------------
+main "$@"
