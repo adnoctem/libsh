@@ -1,5 +1,11 @@
 # BASH Library <img src="https://raw.githubusercontent.com/fmjstudios/artwork/main/projects/bashlib/icon/bash-icon-color.png" alt="Bash Logo" align="right" width="225"/>
 
+[![GitHub top language](https://img.shields.io/github/languages/top/fmjstudios/bashlib)](https://www.gnu.org/software/bash/)
+[![GitHub License](https://img.shields.io/github/license/fmjstudios/bashlib?label=License)](https://opensource.org/license/mit)
+[![GitHub Tag](https://img.shields.io/github/v/tag/fmjstudios/bashlib?label=Version)](https://github.com/fmjstudios/bashlib/releases)
+[![Continuous Integration](https://github.com/fmjstudios/bashlib/actions/workflows/ci.yaml/badge.svg)](https://github.com/fmjstudios/bashlib/actions/workflows/ci.yaml)
+[![GitHub last commit](https://img.shields.io/github/last-commit/fmjstudios/bashlib?label=Activity)](https://github.com/fmjstudios/bashlib/commits/main/)
+
 A library of open-source [MIT][license]-licensed [Bash][bash] scripts written and maintained by `FMJ Studios` for use
 with [Bash][bash] version 5 and above. Refer to the GNU Projects's in-depth [Bash Documentation][bash_docs] for more
 information on how these scripts work. Scripts meant for direct execution by the user, an init system or other means of
