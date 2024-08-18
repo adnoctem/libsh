@@ -1,0 +1,17 @@
+#######################################
+# EDITORS
+#######################################
+
+# IntelliJ IDEA
+.idea
+!.idea/dataSources.xml
+
+# JetBrains Fleet
+.fleet
+
+# VS Code
+.vscode
+
+# Distribution folder
+dist/*
+build/*
