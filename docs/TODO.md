@@ -15,6 +15,7 @@
 
 - Potentially introduce a new top-level `lib` "namespace" to functions from library scripts
 - Add public URL to use the `install` executable like `get.bashlib.fmj.studio` using GitHub Pages
+- Add POSIX utilties for working with arrays like [`krebs/array`](https://github.com/krebs/array/blob/master/array)
 
 ## 🔗 Links
 
