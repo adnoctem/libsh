@@ -40,7 +40,7 @@ jobs:
           token: "${{ github.token }}"
 
       - name: Set up BATS
-        uses: bats-core/bats-action@2.0.0
+        uses: bats-core/bats-action@3.0.0
 
       - name: Run BATS tests
         run: |
