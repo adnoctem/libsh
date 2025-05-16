@@ -37,8 +37,10 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
+        name: "Lint Shell files with 'shellcheck'"
         args: ["-x"]
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.11.0-1
     hooks:
       - id: shfmt
+        name: "Format Shell files with 'shfmt'"
