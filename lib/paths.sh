@@ -6,7 +6,7 @@
 paths::ensure_existence() {
   local path=${1}
 
-  if [[ ! -e "${path}" ]]; then
+  if [[ ! -e ${path} ]]; then
     mkdir -p "$(dirname "${path}")"
   fi
 }

@@ -5,12 +5,12 @@
 package::is_executable() {
   local package=${1}
 
-  if [[ -z "$package" ]]; then
+  if [[ -z $package ]]; then
     return 1
   fi
 
   command_package=$(command -v "$package")
-  if [[ -z "$command_package" ]]; then
+  if [[ -z $command_package ]]; then
     return 1
   fi
 

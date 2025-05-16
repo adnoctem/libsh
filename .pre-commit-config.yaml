@@ -1,0 +1,44 @@
+exclude: ^test/bats/.*
+repos:
+  # General
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+        name: "Check YAML files"
+      - id: end-of-file-fixer
+        name: "Ensure files end with a single newline"
+      - id: trailing-whitespace
+        name: "Remove trailing whitespace from files"
+  - repo: https://github.com/markdownlint/markdownlint
+    rev: v0.13.0
+    hooks:
+      - id: markdownlint
+        name: "Lint Markdown files with 'markdownlint'"
+        args:
+          - "-r ~MD013"
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.2
+    hooks:
+      - id: actionlint
+        name: "Lint GitHub Actions workflows with 'actionlint'"
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.24.6
+    hooks:
+      - id: typos
+        name: "Correct typos with 'typos'"
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+        name: "Scan for potentially leaked secret values using 'gitleaks'"
+  # Shell sources
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ["-x"]
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.11.0-1
+    hooks:
+      - id: shfmt

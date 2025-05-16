@@ -53,11 +53,11 @@ log::green() {
 # Check if a package is installed
 package::is_executable() {
 	local package=${1}
-	if [[ -z "$package" ]]; then
+	if [[ -z $package ]]; then
 		return 1
 	fi
 	command_package=$(command -v "$package")
-	if [[ -z "$command_package" ]]; then
+	if [[ -z $command_package ]]; then
 		return 1
 	fi
 	return 0
@@ -87,7 +87,7 @@ git::branch_exists() {
 paths::ensure_existence() {
 	local path=${1}
 
-	if [[ ! -e "${path}" ]]; then
+	if [[ ! -e ${path} ]]; then
 		mkdir -p "$(dirname "${path}")"
 	fi
 }
@@ -211,7 +211,7 @@ function libtree::update() {
 	destination_path=${1:-"$DESTINATION"}
 	if [ ! -d "$destination_path" ]; then
 		log::red "Destination path \"$destination_path\" does not exist! Cannot update non-existent sources."
-		log::yellow "Be sure to run \"libtree pull\" before running \"... update\"!"
+		log::yellow 'Be sure to run "libtree pull" before running "... update"!'
 		exit 1
 	fi
 
