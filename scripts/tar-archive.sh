@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Create a GNU-zipped tarball of local files and directories.
+# Create a GNU-zipped tarball (archive) of local files and directories.
 
 # Mitigate potential path issues depending on where you're running the script from
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)

@@ -39,7 +39,7 @@ DB_NAMES=()
 # Outputs:
 #   Writes usage to stdout
 #######################################
-function dump_mysql::usage() {
+function mysql_dump::usage() {
   local script_name
 
   script_name=$(basename "${0}")
@@ -67,7 +67,7 @@ function dump_mysql::usage() {
 # Returns:
 #   0 if all dependencies were found, 1 otherwise.
 #######################################
-function dump_mysql::deps() {
+function mysql_dump::deps() {
   local deps=('mysql' 'mysqldump' 'trurl' 'pv')
 
   for dep in "${deps[@]}"; do
@@ -99,7 +99,7 @@ function dump_mysql::deps() {
 #   0 if the source path does not exist.
 #   Otherwise the parent return value of 'tar'.
 #######################################
-function dump_mysql::run() {
+function mysql_dump::run() {
   local db_url, db_host, db_port, db_user, db_password, db_name, destination_path
   db_url=${1}
   db_host=${DB_HOST:-"$(trurl "$db_url" --get '{host}')"}
@@ -119,15 +119,15 @@ function dump_mysql::run() {
   rc=$?
 
   if [ $rc -eq 0 ]; then
-    dump_mysql::exec "$db_host" "$db_port" "$db_user" "$db_password" "$db_name" "$file"
+    mysql_dump::exec "$db_host" "$db_port" "$db_user" "$db_password" "$db_name" "$file"
   else
     for db in "${DB_NAMES[@]}"; do
-      dump_mysql::exec "$db_host" "$db_port" "$db_user" "$db_password" "$db" "$file"
+      mysql_dump::exec "$db_host" "$db_port" "$db_user" "$db_password" "$db" "$file"
     done
   fi
 }
 
-function dump_mysql::exec() {
+function mysql_dump::exec() {
   local db_host, db_port, db_user, db_password, db_name, filename
 
   db_host=${1}
@@ -180,14 +180,14 @@ function main() {
 
   case "${cmd}" in
   help)
-    dump_mysql::usage
+    mysql_dump::usage
     ;;
   deps)
-    dump_mysql::deps
+    mysql_dump::deps
     return $?
     ;;
   *)
-    dump_mysql::run "$@"
+    mysql_dump::run "$@"
     return $?
     ;;
   esac

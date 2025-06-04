@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Manage your Arch Linux installation.
+# Migrate the charset of MySQL databases.
+#
+# shellcheck disable=SC2016
 
 # Mitigate potential path issues depending on where you're running the script from
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -10,14 +12,15 @@ LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
 # shellcheck source=lib/log.sh
 . "$LIB_DIR"/log.sh
 
-# shellcheck source=lib/perm.sh
-. "$LIB_DIR"/perm.sh
-
 # -------------------------
 #   GLOBAL defaults
 # -------------------------
 
-MIRROR_COUNTRIES="Germany,Netherlands,Sweden,Belgium,France,Austria"
+CHARSET="utf8mb4"
+DB_HOST="localhost"
+DB_PORT="3306"
+DB_USER=""
+DB_PASSWORD=""
 
 #######################################
 # Print the usage output for the script.
@@ -28,24 +31,24 @@ MIRROR_COUNTRIES="Germany,Netherlands,Sweden,Belgium,France,Austria"
 # Outputs:
 #   Writes usage to stdout
 #######################################
-function arch::usage() {
+function mysql_migrate_charset::usage() {
   local script_name
 
   script_name=$(basename "${0}")
 
   echo "$script_name"
   echo
-  echo "Manage your Arch Linux installation."
+  echo "Migrate the charset of MySQL databases."
   echo
-  echo "Usage: ./scripts/$script_name <COMMAND>"
+  echo "Usage: ./scripts/$script_name <DB_URL> [CHARSET]"
   echo
   echo "help    - Print this usage information"
   echo "deps    - Show the required dependencies to run this script"
   echo
   echo "Examples:"
   echo "  ./scripts/$script_name (with configured Globals)"
+  echo "  ./scripts/$script_name mysql://db_user:db_password@127.0.0.1:3306/db_name utf8mb4"
   echo "  ./scripts/$script_name mysql://db_user:db_password@127.0.0.1:3306/db_name"
-  echo "  ./scripts/$script_name mysql://db_user:db_password@127.0.0.1:3306/db_name ./Backups"
 }
 
 #######################################
@@ -56,8 +59,8 @@ function arch::usage() {
 # Returns:
 #   0 if all dependencies were found, 1 otherwise.
 #######################################
-function arch::deps() {
-  local deps=('pacman' 'yay')
+function mysql_migrate_charset::deps() {
+  local deps=('mysql' 'mysqldump' 'trurl' 'pv' 'xargs')
 
   for dep in "${deps[@]}"; do
     package::is_executable "${dep}"
@@ -75,39 +78,36 @@ function arch::deps() {
   return 0
 }
 
+# ref: https://stackoverflow.com/questions/6115612/how-to-convert-an-entire-mysql-database-characterset-and-collation-to-utf-8
 #######################################
-# Update the system using the 'yay' and
-# 'pacman' package managers.
-# Arguments:
-#   None
-# Returns:
-#   The parent exist code of the tool.
-#######################################
-arch::update() {
-  local tools=("pacman" "yay")
-  log::green "Updating system packages with ${tools[0]}"
-  perm::run_as_root "${tools[0]}" -Su
-
-  log::green "Updating system packages with ${tools[1]}"
-  "${tools[1]}" -Su
-}
-
-#######################################
-# Update the system mirrors using the
-# 'reflector' tool.
+# Run the MySQL migration.
 # Globals:
-#   MIRROR_COUNTRIES
+#   URL
+#   CHARSET
 # Arguments:
-#   None
+#   The database URL to use for the migration.
+#   A valid MySQL charset.
 # Returns:
-#   The parent exist code of the tool.
+#   The exit code of the called 'mysql' executable.
 #######################################
-arch::mirrors() {
-  sudo reflector \
-    --save /etc/pacman.d/mirrorlist \
-    --country "$MIRROR_COUNTRIES" \
-    --protocol https \
-    --latest 10
+function mysql_migrate_charset::run() {
+  local db_url, db_host, db_port, db_user, db_password, db_name
+  db_url=${1}
+  db_charset=${2:-"$CHARSET"}
+
+  db_host=${DB_HOST:-"$(trurl "$db_url" --get '{host}')"}
+  db_port=${DB_PORT:-"$(trurl "$db_url" --get '{port}')"}
+  db_user=${DB_USER:-"$(trurl "$db_url" --get '{user}')"}
+  db_password=${DB_PASSWORD:-"$(trurl "$db_url" --get '{password}')"}
+  path=$(trurl "$db_url" --get '{path}')
+  db_name=${path#/}
+
+  echo 'ALTER DATABASE `'"$db_name"'` CHARACTER SET utf8 COLLATE `'"$db_charset"'`;'
+  mysql "$db_name" -u"$db_user" -p"$db_password" -e "SHOW TABLES" --batch --skip-column-names |
+    xargs -I{} echo 'ALTER TABLE `'{}'` CONVERT TO CHARACTER SET utf8 COLLATE `'"$db_charset"'`;' |
+    mysql "$db_name" -u"$db_user" -p"$db_password" -h"$db_host" -P"$db_port"
+
+  log_time::green "Finished migration of MySQL database: $db_name to charset $db_charset"
 }
 
 # --------------------------------
@@ -118,23 +118,14 @@ function main() {
 
   case "${cmd}" in
   help)
-    arch::usage
+    mysql_migrate_charset::usage
     ;;
   deps)
-    arch::deps
-    return $?
-    ;;
-  update)
-    arch::update
-    return $?
-    ;;
-  mirrors)
-    arch::mirrors
+    mysql_migrate_charset::deps
     return $?
     ;;
   *)
-    log::yellow "Unknown command: ${cmd}. See 'help' command for usage information:"
-    arch::usage
+    mysql_migrate_charset::run "$@"
     return $?
     ;;
   esac

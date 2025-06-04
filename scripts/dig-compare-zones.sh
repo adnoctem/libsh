@@ -30,7 +30,7 @@ NS2=${3:-"1.1.1.1"}
 # Outputs:
 #   Writes usage to stdout
 #######################################
-function dns_compare_zones::usage() {
+function dig_compare_zones::usage() {
   local script_name
 
   script_name=$(basename "${0}")
@@ -58,7 +58,7 @@ function dns_compare_zones::usage() {
 # Returns:
 #   0 if all dependencies were found, 1 otherwise.
 #######################################
-function dns_compare_zones::deps() {
+function dig_compare_zones::deps() {
   local deps=('dig')
 
   for dep in "${deps[@]}"; do
@@ -91,7 +91,7 @@ function dns_compare_zones::deps() {
 #   0 if the source path does not exist.
 #   Otherwise the parent return value of 'tar'.
 #######################################
-function dns_compare_zones::run() {
+function dig_compare_zones::run() {
   local errors
   local warnings
   local record_types
@@ -164,14 +164,14 @@ function main() {
 
   case "${cmd}" in
   help)
-    dns_compare_zones::usage
+    dig_compare_zones::usage
     ;;
   deps)
-    dns_compare_zones::deps
+    dig_compare_zones::deps
     return $?
     ;;
   *)
-    dns_compare_zones::run "$@"
+    dig_compare_zones::run "$@"
     return $?
     ;;
   esac
