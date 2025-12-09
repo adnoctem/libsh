@@ -36,7 +36,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check if current version exists as tag
-        uses: mukunku/tag-exists-action@v1.6.0
+        uses: mukunku/tag-exists-action@v1.7.0
         id: check-tag
         with:
           tag: v${{ steps.output_version.outputs.version }}
