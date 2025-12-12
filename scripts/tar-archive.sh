@@ -21,7 +21,7 @@ LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
 # -------------------------
 
 SOURCE=""
-DESTINATION="${HOME}/.bashlib"
+DESTINATION="${HOME}/.libsh"
 
 #######################################
 # Print the usage output for the script.

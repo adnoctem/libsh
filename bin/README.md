@@ -9,11 +9,11 @@ functions from `lib` within.
 
 ```shell
 # with curl
-curl -LJO https://raw.githubusercontent.com/fmjstudios/bashlib/main/bin/libtree && chmod +x libtree
+curl -LJO https://raw.githubusercontent.com/adnoctem/libsh/main/bin/libtree && chmod +x libtree
 ```
 
 ```shell
 # with wget
-wget --no-check-certificate --content-disposition https://raw.githubusercontent.com/fmjstudios/bashlib/main/bin/libtree && \
+wget --no-check-certificate --content-disposition https://raw.githubusercontent.com/adnoctem/libsh/main/bin/libtree && \
 chmod +x libtree
 ```

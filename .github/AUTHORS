@@ -1,10 +1,16 @@
-# This is the list of Helm Charts' significant contributors.
-#
-# This does not necessarily list everyone who has contributed code,
-# especially since many employees of one corporation may be contributing.
-# To see the full list of contributors, see the revision history in
-# source control.
-# This file is currently manually managed.
+# This is the list of Helm Charts' significant contributors
 
-FMJ Studios
-Maximilian Gindorfer <info@fmj.dev>
+#
+
+# This does not necessarily list everyone who has contributed code
+
+# especially since many employees of one corporation may be contributing
+
+# To see the full list of contributors, see the revision history in
+
+# source control
+
+# This file is currently manually managed
+
+Ad Noctem Collective
+MVProwess <info@mvprowess.com>

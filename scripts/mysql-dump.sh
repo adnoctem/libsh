@@ -17,13 +17,13 @@ LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
 . "$LIB_DIR"/paths.sh
 
 # shellcheck source=lib/array.sh
-. "$LIB_DIR/array.sh"
+. "$LIB_DIR"/array.sh
 
 # -------------------------
 #   GLOBAL defaults
 # -------------------------
 
-DESTINATION="${HOME}/.bashlib"
+DESTINATION="${HOME}/.libsh"
 DB_HOST=""
 DB_PORT=""
 DB_USER=""

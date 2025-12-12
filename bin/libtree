@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Install `bashlib`s library sources into a subdirectory within your repository with Git Subtree.
+# Install `libsh`s library sources into a subdirectory within your repository with Git Subtree.
 # This script largely relies on community provided sources (GitHub Gist) for the actual Git
 # logic.
 #
 # This is a self-contained Bash script, shipped and used as an executable. Install with the following command:
 #
-# curl -sLJO https://github.com/fmjstudios/bashlib/bin/libtree
+# curl -sLJO https://github.com/adnoctem/libsh/bin/libtree
 #
 # ref: https://gist.github.com/tswaters/542ba147a07904b1f3f5
 
@@ -16,10 +16,10 @@
 REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
 DESTINATION="scripts/lib"
 
-UPSTREAM_REMOTE_NAME="bashlib-upstream"
+UPSTREAM_REMOTE_NAME="libsh-upstream"
 UPSTREAM_REMOTE_BRANCH="main"
-UPSTREAM_BRANCH="upstream/bashlib"
-MERGING_BRANCH="merging/bashlib"
+UPSTREAM_BRANCH="upstream/libsh"
+MERGING_BRANCH="merging/libsh"
 DEFAULT_BRANCH="main"
 
 # -------------------------
@@ -124,14 +124,14 @@ function libtree::usage() {
 
 	echo "$script_name"
 	echo
-	echo "Pull bashlib's library sources into your repository with Git Subtree."
+	echo "Pull libsh's library sources into your repository with Git Subtree."
 	echo "By default the sources are pulled into scripts/lib in your working directory."
 	echo
 	echo "Usage: ./scripts/$script_name <DESTINATION>"
 	echo
 	echo "help    - Print this usage information"
-	echo "pull    - Pull the upstream bashlib sources"
-	echo "update  - Update the upstream bashlib sources"
+	echo "pull    - Pull the upstream libsh sources"
+	echo "update  - Update the upstream libsh sources"
 	echo "clean   - Delete the upstream and merging branches/remotes."
 	echo
 	echo "Examples:"
@@ -162,12 +162,12 @@ function libtree::pull() {
 	local destination_path
 	destination_path=${1:-"$DESTINATION"}
 
-	# add bashlib remote, create a new tracking branch
+	# add libsh remote, create a new tracking branch
 	git::remote_exists "$UPSTREAM_REMOTE_NAME"
 	rrc=$?
 
 	if [[ $rrc -eq 1 ]]; then
-		git remote add -f "$UPSTREAM_REMOTE_NAME" https://github.com/fmjstudios/bashlib.git
+		git remote add -f "$UPSTREAM_REMOTE_NAME" https://github.com/adnoctem/libsh.git
 	else
 		log::yellow "Your repository already has the remote $UPSTREAM_REMOTE_NAME. Skipping re-creation."
 	fi
@@ -182,7 +182,7 @@ function libtree::pull() {
 	fi
 
 	# split off subdir of tracking branch into separate branch
-	git subtree split -q --squash --prefix=lib --annotate="[bashlib] " --rejoin -b "$MERGING_BRANCH"
+	git subtree split -q --squash --prefix=lib --annotate="[libsh] " --rejoin -b "$MERGING_BRANCH"
 
 	# add separate branch as subdirectory on main.
 	git checkout "$DEFAULT_BRANCH"
@@ -220,7 +220,7 @@ function libtree::update() {
 	git pull "$UPSTREAM_REMOTE_NAME/$UPSTREAM_REMOTE_BRANCH"
 
 	# update the separate branch with changes from upstream
-	git subtree split -q --prefix=lib --annotate="[bashlib] " --rejoin -b "$MERGING_BRANCH"
+	git subtree split -q --prefix=lib --annotate="[libsh] " --rejoin -b "$MERGING_BRANCH"
 
 	# switch back to master and use subtree merge to update the subdirectory
 	git checkout "$DEFAULT_BRANCH"
@@ -239,7 +239,7 @@ function libtree::update() {
 #   'git' operation.
 #######################################
 function libtree::clean() {
-	# delete the bashlib-upstream remote
+	# delete the libsh-upstream remote
 	git::remote_exists "$UPSTREAM_REMOTE_NAME"
 	rrc=$?
 	if [[ $rrc -eq 1 ]]; then
@@ -248,7 +248,7 @@ function libtree::clean() {
 		git remote rm "$UPSTREAM_REMOTE_NAME"
 	fi
 
-	# delete the upstream/bashlib branch
+	# delete the upstream/libsh branch
 	git::branch_exists "$UPSTREAM_BRANCH"
 	burc=$?
 	if [[ $burc -eq 1 ]]; then
@@ -258,7 +258,7 @@ function libtree::clean() {
 		git branch -D "$UPSTREAM_BRANCH"
 	fi
 
-	# delete the merging/bashlib branch
+	# delete the merging/libsh branch
 	git::branch_exists "$MERGING_BRANCH"
 	bmrc=$?
 	if [[ $bmrc -eq 1 ]]; then

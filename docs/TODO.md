@@ -1,4 +1,4 @@
-# ✅ `TODO`s - FMJ Studios Bash Library
+# ✅ `TODO`s - `libsh`
 
 ## ➕ Additions
 
@@ -14,7 +14,7 @@
 ## 💡 Ideas
 
 - Potentially introduce a new top-level `lib` "namespace" to functions from library scripts
-- Add public URL to use the `install` executable like `get.bashlib.fmj.studio` using GitHub Pages
+- Add public URL to use the `install` executable like `get.libsh.adnoctem.co` using GitHub Pages
 - Add POSIX utilities for working with arrays like [`krebs/array`](https://github.com/krebs/array/blob/master/array)
 
 ## 🔗 Links
