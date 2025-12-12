@@ -88,7 +88,7 @@ function backup::deps() {
 #   Otherwise the parent return value of 'tar'.
 #######################################
 function backup::run() {
-  local source_path, backup_name, destination_path, curdate
+  local source_path backup_name destination_path curdate
   source_path=${1:-"$SOURCE"}
   backup_name=${2:-$(basename "$SOURCE")}
   destination_path=${3:-"$DESTINATION"}
@@ -100,7 +100,8 @@ function backup::run() {
   fi
 
   paths::ensure_existence "$destination_path"
-  tar -vczf "$destination_path/$backup_name-$curdate.tar.gz"
+  # ref: https://unix.stackexchange.com/questions/59243/tar-removing-leading-from-member-names
+  tar -vczf "$destination_path/$backup_name-$curdate.tar.gz" -C / "${source_path#/}"
 }
 
 # --------------------------------

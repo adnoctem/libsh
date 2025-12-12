@@ -8,10 +8,10 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
 
 # shellcheck source=lib/log.sh
-. "${LIB_DIR}/log.sh"
+. "${LIB_DIR}"/log.sh
 
 # shellcheck source=lib/package.sh
-. "${LIB_DIR}/package.sh"
+. "${LIB_DIR}"/package.sh
 
 # -------------------------
 #   GLOBAL defaults
@@ -92,9 +92,7 @@ function dig_compare_zones::deps() {
 #   Otherwise the parent return value of 'tar'.
 #######################################
 function dig_compare_zones::run() {
-  local errors
-  local warnings
-  local record_types
+  local errors warnings record_types
 
   declare -i errors=0
   declare -i warnings=0

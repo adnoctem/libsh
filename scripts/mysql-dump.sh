@@ -100,7 +100,7 @@ function mysql_dump::deps() {
 #   Otherwise the parent return value of 'tar'.
 #######################################
 function mysql_dump::run() {
-  local db_url, db_host, db_port, db_user, db_password, db_name, destination_path
+  local db_url db_host db_port db_user db_password db_name destination_path
   db_url=${1}
   db_host=${DB_HOST:-"$(trurl "$db_url" --get '{host}')"}
   db_port=${DB_PORT:-"$(trurl "$db_url" --get '{port}')"}
@@ -128,7 +128,7 @@ function mysql_dump::run() {
 }
 
 function mysql_dump::exec() {
-  local db_host, db_port, db_user, db_password, db_name, filename
+  local db_host db_port db_user db_password db_name filename
 
   db_host=${1}
   db_port=${2}

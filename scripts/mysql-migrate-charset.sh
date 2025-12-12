@@ -91,7 +91,7 @@ function mysql_migrate_charset::deps() {
 #   The exit code of the called 'mysql' executable.
 #######################################
 function mysql_migrate_charset::run() {
-  local db_url, db_host, db_port, db_user, db_password, db_name
+  local db_url db_host db_port db_user db_password db_name
   db_url=${1}
   db_charset=${2:-"$CHARSET"}
 
