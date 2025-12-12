@@ -48,7 +48,7 @@ function mysql_dump::usage() {
   echo
   echo "Create dumps of MySQL databases."
   echo
-  echo "Usage: ./scripts/$script_name <DB_URL> [DESTINATION]"
+  echo "Usage: ./scripts/$script_name [DESTINATION] [DB_URL]"
   echo
   echo "help    - Print this usage information"
   echo "deps    - Show the required dependencies to run this script"
@@ -56,7 +56,7 @@ function mysql_dump::usage() {
   echo "Examples:"
   echo "  ./scripts/$script_name (with configured Globals)"
   echo "  ./scripts/$script_name mysql://db_user:db_password@127.0.0.1:3306/db_name"
-  echo "  ./scripts/$script_name mysql://db_user:db_password@127.0.0.1:3306/db_name ./Backups"
+  echo "  ./scripts/$script_name /tmp/backups mysql://db_user:db_password@127.0.0.1:3306/db_name"
 }
 
 #######################################
@@ -89,8 +89,12 @@ function mysql_dump::deps() {
 #######################################
 # Run MySQL dump.
 # Globals:
-#   SOURCE
 #   DESTINATION
+#   DB_HOST
+#   DB_PORT
+#   DB_USER
+#   DB_PASSWORD
+#   DB_NAMES
 # Arguments:
 #   A source file path from which to backup.
 #   A name for the backup (to name the tarball).
@@ -101,30 +105,29 @@ function mysql_dump::deps() {
 #######################################
 function mysql_dump::run() {
   local db_url db_host db_port db_user db_password db_name destination_path
-  db_url=${1}
+
+  destination_path=${1:-"$DESTINATION"}
+  paths::ensure_existence "$destination_path"
+
+  db_url=${2}
   db_host=${DB_HOST:-"$(trurl "$db_url" --get '{host}')"}
   db_port=${DB_PORT:-"$(trurl "$db_url" --get '{port}')"}
   db_user=${DB_USER:-"$(trurl "$db_url" --get '{user}')"}
   db_password=${DB_PASSWORD:-"$(trurl "$db_url" --get '{password}')"}
-  path=$(trurl "$db_url" --get '{path}')
-  db_name=${path#/}
 
-  destination_path=${2:-"$DESTINATION"}
-  paths::ensure_existence "$destination_path"
+  # handle unconfigured globals -> grab DB name from URL
+  empty=$(array::is_empty "${DB_NAMES[@]}")
+  if [ "$empty" -eq 0 ]; then
+    path=$(trurl "$db_url" --get '{path}')
+    DB_NAMES+=("${path#/}")
+  fi
 
   curdate=$(date '+%d-%m-%Y+%T')
-  file="$destination_path/dump_$db_name-$curdate.sql"
+  file="$destination_path/mysqldump_$db_name-$curdate.sql"
 
-  array::is_empty "${DB_NAMES[@]}"
-  rc=$?
-
-  if [ $rc -eq 0 ]; then
+  for db_name in "${DB_NAMES[@]}"; do
     mysql_dump::exec "$db_host" "$db_port" "$db_user" "$db_password" "$db_name" "$file"
-  else
-    for db in "${DB_NAMES[@]}"; do
-      mysql_dump::exec "$db_host" "$db_port" "$db_user" "$db_password" "$db" "$file"
-    done
-  fi
+  done
 }
 
 function mysql_dump::exec() {
