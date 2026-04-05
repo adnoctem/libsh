@@ -2,7 +2,7 @@
     <!-- PowerShell -->
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://github.com/adnoctem/artwork/blob/425046029eaed451f5ced22ddc650059dff11878/projects/libsh/icon/color/bash-icon-color.png?raw=true">
-      <img src="https://github.com/adnoctem/artwork/blob/425046029eaed451f5ced22ddc650059dff11878/projects/libsh/icon/color/bash-icon-color.png?raw=true" alt="BASH Logo" width="225">
+      <img src="https://github.com/adnoctem/artwork/blob/425046029eaed451f5ced22ddc650059dff11878/projects/libsh/icon/color/bash-icon-color.png?raw=true" alt="Bash Logo" width="225">
     </picture>
     <h1 align="center">libsh</h1>
 </p>
@@ -17,9 +17,9 @@ A library of open-source [MIT][license]-licensed [Bash][bash] scripts written an
 with [Bash][bash] version 5 and above. Refer to the GNU Projects's in-depth [Bash Documentation][bash_docs] for more
 information on how these scripts work. Scripts meant for direct execution by the user, an init system or other means of
 automation are located in the [`scripts`](scripts) directory. The [`lib`](lib) directory contains library scripts meant
-to be re-used across files or even different repositories with things like [Git Submodules][git_submodules] or _contrib_
+to be reused across files or even different repositories with things like [Git Submodules][git_submodules] or _contrib_
 scripts like [git_subtree]. You may of course take a look at other repositories of ours for tips on how to achieve
-re-use.
+reuse.
 
 ## ✨ TL;DR
 

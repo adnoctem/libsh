@@ -71,7 +71,7 @@ function arch_packages::deps() {
     log::green "Found package '${dep}' in system PATH."
   done
 
-  log::green "Found all dependant packages: '${deps[*]}' in system PATH. Ready to proceed!"
+  log::green "Found all dependent packages: '${deps[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 

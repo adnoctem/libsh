@@ -28,3 +28,5 @@ jobs:
           VALIDATE_JSCPD: false
           VALIDATE_YAML: false
           BASH_EXEC_IGNORE_LIBRARIES: true
+          # TODO(MVProwess): re-enable these once we have a tool for this
+          VALIDATE_GITHUB_ACTIONS_ZIZMOR: false

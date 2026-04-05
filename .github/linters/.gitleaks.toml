@@ -6,8 +6,8 @@ title = "gitleaks config"
 useDefault = true
 
 # do not check any certain false positives
-[allowlist]
-description = "global ignore"
+# [allowlist]
+# description = "global ignore"
 # paths = [
 #     '''\w*-?values.yaml'''
 # ]
