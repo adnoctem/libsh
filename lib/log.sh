@@ -8,7 +8,7 @@
 # Globals:
 #   None
 # Arguments:
-#   1 - The BASH color code with suffix -m
+#   1 - The Bash color code with suffix -m
 #   2 - The string to log to stdout
 # Outputs:
 #   The given string in the given color.

@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# BASH helper functions for working with arrays.
+# Bash helper functions for working with arrays.
 
 # Determine if an array is empty
 array::is_empty() {

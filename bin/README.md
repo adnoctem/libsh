@@ -1,4 +1,4 @@
-# BASH Library - Executables
+# Bash Library - Executables
 
 The files contained in this `bin` directory are self-contained Bash executables which you may download and use at will.
 You can use any familiar tool like `curl` or `wget` to download these executables and make them executable on your

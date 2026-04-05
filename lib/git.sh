@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-# BASH functions to obtain correct paths.
+# Bash functions to obtain correct paths.
 
 #######################################
 # Obtain the toplevel directory of a Git
