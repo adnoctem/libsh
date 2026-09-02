@@ -40,17 +40,6 @@ export ROOT_DIR = $(shell git rev-parse --show-toplevel)
 export PROJ_NAME = $(shell basename "$(ROOT_DIR)")
 
 # ---------------------------
-# Sources
-# ---------------------------
-FIND_FLAGS := -name "*.sh" -type f
-SOURCES := $(shell find $(ROOT_DIR) $(FIND_FLAGS))
-BUNDLES := scripts lib all
-
-# Only export variables from here since we do not want to mix the top-level
-# Makefile's notion of 'SOURCES' with the different sub-makes
-export
-
-# ---------------------------
 # Constants
 # ---------------------------
 VERSION := 0.1.1
@@ -59,6 +48,7 @@ VERSION := 0.1.1
 OUT_DIR := $(ROOT_DIR)/dist
 SCRIPT_DIR := $(ROOT_DIR)/scripts
 LIB_DIR := $(ROOT_DIR)/lib
+BIN_DIR := $(ROOT_DIR)/bin
 CI_DIR := $(ROOT_DIR)/.github
 CI_LINTER_DIR := $(CI_DIR)/linters
 TEST_DIR := $(ROOT_DIR)/test
@@ -68,7 +58,26 @@ DOCS_DIR := $(ROOT_DIR)/docs
 MARKDOWNLINT_CONFIG := $(CI_LINTER_DIR)/.markdown-lint.yml
 GITLEAKS_CONFIG := $(CI_LINTER_DIR)/.gitleaks.toml
 
+# ---------------------------
+# Sources
+# ---------------------------
+# The directories that ship in a release, and therefore the ones the linters
+# care about. 'bin/' holds executables without a .sh suffix, so it is matched
+# by type rather than by extension.
+BUNDLES := scripts lib bin
+BIN_SOURCES := $(shell find $(BIN_DIR) -maxdepth 1 -type f ! -name '*.md' 2>/dev/null)
+SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(BIN_SOURCES)
+
+# Prefer a bats on PATH (CI installs one) and fall back to the submodule.
+BATS := $(shell command -v bats 2>/dev/null || echo $(TEST_DIR)/bats/core/bin/bats)
+
+# Only export variables from here, so the top-level Makefile's notion of the
+# source lists does not leak into the different sub-makes
+export
+
+# ---------------------------
 # Executables
+# ---------------------------
 shellcheck := shellcheck
 shfmt := shfmt
 markdownlint := markdownlint
@@ -86,31 +95,23 @@ WHAT ?=
 # ---------------------------
 # Custom functions
 # ---------------------------
-
-define log
- @case ${2} in \
-  gray)    echo -e "\e[90m${1}\e[0m" ;; \
-  red)     echo -e "\e[91m${1}\e[0m" ;; \
-  green)   echo -e "\e[92m${1}\e[0m" ;; \
-  yellow)  echo -e "\e[93m${1}\e[0m" ;; \
-  *)       echo -e "\e[97m${1}\e[0m" ;; \
- esac
-endef
+# Logging delegates to lib/log.sh so the colours have one definition in the
+# repository rather than a second copy here.
 
 define log_info
- $(call log, $(1), "gray")
+ @. $(LIB_DIR)/log.sh && lib::log::cyan $(1)
 endef
 
 define log_success
- $(call log, $(1), "green")
+ @. $(LIB_DIR)/log.sh && lib::log::green $(1)
 endef
 
 define log_notice
- $(call log, $(1), "yellow")
+ @. $(LIB_DIR)/log.sh && lib::log::yellow $(1)
 endef
 
 define log_attention
- $(call log, $(1), "red")
+ @. $(LIB_DIR)/log.sh && lib::log::red $(1)
 endef
 
 # ---------------------------
@@ -130,8 +131,7 @@ all:
 else
 all: clean
 	$(call log_success, "Building all bundles into $(OUT_DIR)")
-	# do not remove the ending semicolon as it will break the target
-	$(foreach type,$(BUNDLES),$(MAKE) build WHAT=$(type);)
+	@$(MAKE) build
 endif
 
 define BUILD_INFO
@@ -148,24 +148,23 @@ build:
 else
 build: out-dir
 ifeq ($(WHAT),)
-	$(call log_success, "Building complete tarball bundle into $(OUT_DIR)")
-	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(VERSION).tar.gz" scripts/ lib/ bin/
-	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-scripts-$(VERSION).tar.gz" scripts/
-	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-lib-$(VERSION).tar.gz" lib/
-	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-bin-$(VERSION).tar.gz" bin/
+	$(call log_success, "Building the complete bundle and one per directory into $(OUT_DIR)")
+	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(VERSION).tar.gz" $(BUNDLES)
+	# do not remove the ending semicolon as it will break the target
+	$(foreach type,$(BUNDLES),tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(type)-$(VERSION).tar.gz" $(type);)
 else
 	$(call log_success, "Building tarball bundle for $(WHAT)")
-	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(WHAT)-$(VERSION).tar.gz" -C $(WHAT) .
+	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(WHAT)-$(VERSION).tar.gz" $(WHAT)
 endif
 endif
 
 
 define TEST_INFO
-# Run tests for scripts, the Bash library or the executables.
+# Run tests for the Bash library.
 #
 # Arguments:
 #   PRINT_HELP: 'y' or 'n'
-#   WHAT: 'scripts', 'lib', 'bin'
+#   WHAT: a subdirectory of test/, e.g. 'lib'
 endef
 .PHONY: test
 ifeq ($(PRINT_HELP), y)
@@ -174,17 +173,21 @@ test:
 else
 test: update-submodules
 ifeq ($(WHAT),)
-	$(call log_success, "Testing all Bash sources for!")
-	@$(TEST_DIR)/bats/core/bin/bats -r $(TEST_DIR)/lib
+	$(call log_success, "Testing all Bash sources!")
+	@$(BATS) -r $(TEST_DIR)/lib
 else
 	$(call log_success, "Testing Bash sources for $(WHAT)")
-	@$(TEST_DIR)/bats/core/bin/bats -r $(TEST_DIR)/$(WHAT)
+	@$(BATS) -r $(TEST_DIR)/$(WHAT)
 endif
 endif
 
 # ---------------------------
 #   Housekeeping
 # ---------------------------
+
+.PHONY: init
+init: update-submodules tools-check
+	$(call log_success, "$(PROJ_NAME) is ready for development!")
 
 .PHONY: update-submodules
 update-submodules:
@@ -213,19 +216,42 @@ out-dir:
 version:
 	@echo -n "$(VERSION)"
 
+# Fails with the list of what to install, rather than letting a recipe die on
+# a bare 'command not found' halfway through a lint run.
 .PHONY: tools-check
 tools-check:
-	$(foreach exe,$(EXECUTABLES), $(if $(shell command -v $(exe) 2> /dev/null), $(info Found $(exe)), $(info Please install $(exe))))
+	@. $(LIB_DIR)/log.sh; \
+	missing=""; \
+	for exe in $(EXECUTABLES); do \
+		if command -v "$$exe" >/dev/null 2>&1; then \
+			lib::log::green "Found $$exe in system PATH."; \
+		else \
+			missing="$$missing $$exe"; \
+		fi; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		lib::log::red "Missing required tool(s):$$missing"; \
+		exit 1; \
+	fi; \
+	lib::log::green "Found all required tools. Ready to proceed!"
+
+# ---------------------------
+# Formatting
+# ---------------------------
+.PHONY: format
+format:
+	$(call log_notice, "Formatting all Bash sources with shfmt")
+	@shfmt --apply-ignore --write .
 
 # ---------------------------
 # Linting
 # ---------------------------
 .PHONY: lint
-lint: markdownlint actionlint shellcheck shfmt gitleaks
+lint: tools-check markdownlint actionlint shellcheck shfmt gitleaks
 
 .PHONY: markdownlint
 markdownlint:
-	@markdownlint -c $(MARKDOWNLINT_CONFIG) '**/*.md' -i 'test/**/*'
+	@markdownlint -c $(MARKDOWNLINT_CONFIG) '**/*.md' -i 'test/**/*' -i 'secrets/**/*'
 
 .PHONY: actionlint
 actionlint:
@@ -237,9 +263,7 @@ gitleaks:
 
 .PHONY: shellcheck
 shellcheck:
-	@shellcheck scripts/*.sh -x
-	@shellcheck lib/*.sh -x
-	@shellcheck bin/install bin/libtree -x
+	@shellcheck -x $(SHELL_SOURCES)
 
 .PHONY: shfmt
 shfmt:

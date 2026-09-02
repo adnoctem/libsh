@@ -44,4 +44,4 @@ jobs:
 
       - name: Run BATS tests
         run: |
-          bats -r ${{ github.workspace }}/test/lib
+          make test

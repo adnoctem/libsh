@@ -9,34 +9,34 @@ setup() {
 	source "$REPO_ROOT/lib/array.sh"
 }
 
-# array::is_empty
-@test 'array::is_empty succeeds with an empty array' {
+# lib::array::is_empty
+@test 'lib::array::is_empty succeeds with an empty array' {
 	test_array=()
 
-	run array::is_empty "${test_array[@]}"
+	run lib::array::is_empty "${test_array[@]}"
 	assert_success
 }
 
-@test "array::is_empty fails with a full array" {
+@test "lib::array::is_empty fails with a full array" {
 	test_array=('black' 'red' 'gold')
 
-	run array::is_empty "${test_array[@]}"
+	run lib::array::is_empty "${test_array[@]}"
 	assert_failure
 }
 
-# array::contains
-@test "array::contains succeeds with a valid element" {
+# lib::array::contains
+@test "lib::array::contains succeeds with a valid element" {
 	test_array=('black' 'red' 'gold')
 	test_element=black
 
-	run array::contains "${test_element}" "${test_array[@]}"
+	run lib::array::contains "${test_element}" "${test_array[@]}"
 	assert_success
 }
 
-@test "array::contains fails with an invalid element" {
+@test "lib::array::contains fails with an invalid element" {
 	test_array=('black' 'red' 'gold')
 	test_element=blue
 
-	run array::contains "${test_element}" "${test_array[@]}"
+	run lib::array::contains "${test_element}" "${test_array[@]}"
 	assert_failure
 }

@@ -3,7 +3,7 @@
 # Run commands with elevated privileges.
 
 # Check if the current user is root
-function perm::check_if_root() {
+function lib::permissions::check_if_root() {
   if [[ $EUID -ne 0 ]]; then
     return 1
   else
@@ -12,7 +12,7 @@ function perm::check_if_root() {
 }
 
 # Prefix commands with sudo or not
-function perm::run_as_root() {
+function lib::permissions::run_as_root() {
   if [[ $EUID -ne 0 ]]; then
     sudo "$@"
   else

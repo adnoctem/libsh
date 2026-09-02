@@ -36,22 +36,22 @@ log() {
 }
 
 # Write red output to stdout
-log::red() {
+lib::log::red() {
 	log "31m" "${1}"
 }
 
 # Write yellow output to stdout
-log::yellow() {
+lib::log::yellow() {
 	log "33m" "${1}"
 }
 
 # Write green output to stdout
-log::green() {
+lib::log::green() {
 	log "32m" "${1}"
 }
 
 # Check if a package is installed
-package::is_executable() {
+lib::package::is_executable() {
 	local package=${1}
 	if [[ -z $package ]]; then
 		return 1
@@ -64,7 +64,7 @@ package::is_executable() {
 }
 
 # Check if a remote exists
-git::remote_exists() {
+lib::git::remote_exists() {
 	remote=${1}
 
 	git remote show | grep -E "$remote"
@@ -74,7 +74,7 @@ git::remote_exists() {
 }
 
 # Check if a branch exists
-git::branch_exists() {
+lib::git::branch_exists() {
 	branch=${1}
 
 	git branch -l | grep -E "$branch"
@@ -84,7 +84,7 @@ git::branch_exists() {
 }
 
 # Ensure a base-directory for a given path exists
-paths::ensure_existence() {
+lib::paths::ensure_existence() {
 	local path=${1}
 
 	if [[ ! -e ${path} ]]; then
@@ -95,15 +95,15 @@ paths::ensure_existence() {
 # Check if the required dependencies for the scripts are installed.
 function libtree::checks() {
 	if [[ $(pwd) != "$REPOSITORY_ROOT" ]]; then
-		log::red "libtree must be run from the root of your repository! Exiting.."
+		lib::log::red "libtree must be run from the root of your repository! Exiting.."
 		exit 1
 	fi
 
-	package::is_executable git
+	lib::package::is_executable git
 	rc=$?
 
 	if [ $rc -ne 0 ]; then
-		log::red "Could not find package \"git\" in system PATH. Please install \"git\" to use 'libtree'!"
+		lib::log::red "Could not find package \"git\" in system PATH. Please install \"git\" to use 'libtree'!"
 		exit 1
 	fi
 }
@@ -163,22 +163,22 @@ function libtree::pull() {
 	destination_path=${1:-"$DESTINATION"}
 
 	# add libsh remote, create a new tracking branch
-	git::remote_exists "$UPSTREAM_REMOTE_NAME"
+	lib::git::remote_exists "$UPSTREAM_REMOTE_NAME"
 	rrc=$?
 
 	if [[ $rrc -eq 1 ]]; then
 		git remote add -f "$UPSTREAM_REMOTE_NAME" https://github.com/adnoctem/libsh.git
 	else
-		log::yellow "Your repository already has the remote $UPSTREAM_REMOTE_NAME. Skipping re-creation."
+		lib::log::yellow "Your repository already has the remote $UPSTREAM_REMOTE_NAME. Skipping re-creation."
 	fi
 
-	git::branch_exists "$UPSTREAM_BRANCH"
+	lib::git::branch_exists "$UPSTREAM_BRANCH"
 	brc=$?
 
 	if [[ $brc -eq 1 ]]; then
 		git checkout -b "$UPSTREAM_BRANCH" "$UPSTREAM_REMOTE_NAME/$UPSTREAM_REMOTE_BRANCH"
 	else
-		log::yellow "Your repository already has the branch $UPSTREAM_BRANCH. Skipping re-creation."
+		lib::log::yellow "Your repository already has the branch $UPSTREAM_BRANCH. Skipping re-creation."
 	fi
 
 	# split off subdir of tracking branch into separate branch
@@ -210,8 +210,8 @@ function libtree::update() {
 
 	destination_path=${1:-"$DESTINATION"}
 	if [ ! -d "$destination_path" ]; then
-		log::red "Destination path \"$destination_path\" does not exist! Cannot update non-existent sources."
-		log::yellow 'Be sure to run "libtree pull" before running "... update"!'
+		lib::log::red "Destination path \"$destination_path\" does not exist! Cannot update non-existent sources."
+		lib::log::yellow 'Be sure to run "libtree pull" before running "... update"!'
 		exit 1
 	fi
 
@@ -240,29 +240,29 @@ function libtree::update() {
 #######################################
 function libtree::clean() {
 	# delete the libsh-upstream remote
-	git::remote_exists "$UPSTREAM_REMOTE_NAME"
+	lib::git::remote_exists "$UPSTREAM_REMOTE_NAME"
 	rrc=$?
 	if [[ $rrc -eq 1 ]]; then
-		log::yellow "Your repository does not have the remote $UPSTREAM_REMOTE_NAME. Skipping deletion of non-existent remote."
+		lib::log::yellow "Your repository does not have the remote $UPSTREAM_REMOTE_NAME. Skipping deletion of non-existent remote."
 	else
 		git remote rm "$UPSTREAM_REMOTE_NAME"
 	fi
 
 	# delete the upstream/libsh branch
-	git::branch_exists "$UPSTREAM_BRANCH"
+	lib::git::branch_exists "$UPSTREAM_BRANCH"
 	burc=$?
 	if [[ $burc -eq 1 ]]; then
-		log::yellow "Your repository does not have the branch $UPSTREAM_BRANCH. Skipping deletion of non-existent branch."
+		lib::log::yellow "Your repository does not have the branch $UPSTREAM_BRANCH. Skipping deletion of non-existent branch."
 
 	else
 		git branch -D "$UPSTREAM_BRANCH"
 	fi
 
 	# delete the merging/libsh branch
-	git::branch_exists "$MERGING_BRANCH"
+	lib::git::branch_exists "$MERGING_BRANCH"
 	bmrc=$?
 	if [[ $bmrc -eq 1 ]]; then
-		log::yellow "Your repository does not have the branch $MERGING_BRANCH. Skipping deletion of non-existent branch."
+		lib::log::yellow "Your repository does not have the branch $MERGING_BRANCH. Skipping deletion of non-existent branch."
 
 	else
 		git branch -D "$MERGING_BRANCH"
@@ -294,7 +294,7 @@ function main() {
 		return $?
 		;;
 	*)
-		log::yellow "Unknown command: ${cmd}. See 'help' command for usage information:"
+		lib::log::yellow "Unknown command: ${cmd}. See 'help' command for usage information:"
 		libtree::usage
 		return $?
 		;;

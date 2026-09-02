@@ -3,7 +3,7 @@
 # Bash helper functions for working with arrays.
 
 # Determine if an array is empty
-array::is_empty() {
+lib::array::is_empty() {
   local array=("${@:1}")
 
   if [ ${#array[@]} -eq 0 ]; then
@@ -14,7 +14,7 @@ array::is_empty() {
 }
 
 # Determine if an array contains a certain string
-array::contains() {
+lib::array::contains() {
   local needle=${1} array=("${@:2}")
 
   if [[ " ${array[*]} " =~ [[:space:]]${needle}[[:space:]] ]]; then

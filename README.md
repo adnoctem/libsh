@@ -24,14 +24,17 @@ reuse.
 ## ✨ TL;DR
 
 ```shell
-# refer to the script 'help' command output for more information
-./scripts/tar-archive.sh /var/www/html /opt/backup/destination
+# refer to the script's '--help' output for more information
+./scripts/archive-create.sh --sources /var/www/html --output-dir /opt/backup/destination
 ```
 
 ### 🔃 Contributing
 
 Contributions are welcome via GitHub's Pull Requests. Fork the repository and implement your changes within the forked
 repository, after that you may submit a [Pull Request][gh_pr_fork_docs].
+
+Refer to the [Contributing Guidelines](docs/CONTRIBUTING.md) for the build targets, coding conventions, and commit
+message format, and to [`NOMENCLATURE.md`](docs/NOMENCLATURE.md) for how scripts and library functions are named.
 
 ### 📥 Maintainers
 

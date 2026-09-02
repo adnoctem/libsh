@@ -2,7 +2,7 @@
 
 # Work with packages and executables.
 
-package::is_executable() {
+lib::package::is_executable() {
   local package=${1}
 
   if [[ -z $package ]]; then

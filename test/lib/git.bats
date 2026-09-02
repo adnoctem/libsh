@@ -9,32 +9,32 @@ setup() {
 	source "$REPO_ROOT/lib/git.sh"
 }
 
-# git::toplevel
-@test 'git::toplevel returns a parent directory of the test location' {
+# lib::git::toplevel
+@test 'lib::git::toplevel returns a parent directory of the test location' {
 	curdir=$(pwd)
 
-	run git::toplevel
+	run lib::git::toplevel
 	assert_output --partial "$curdir"
 }
 
-# git::remote_exists
-@test "git::remote_exists succeeds with a valid remote" {
-	run git::remote_exists origin
+# lib::git::remote_exists
+@test "lib::git::remote_exists succeeds with a valid remote" {
+	run lib::git::remote_exists origin
 	assert_success
 }
 
-@test "git::remote_exists fails with an invalid remote" {
-	run git::remote_exists github
+@test "lib::git::remote_exists fails with an invalid remote" {
+	run lib::git::remote_exists github
 	assert_failure
 }
 
-# git::branch_exists
-@test "git::branch_exists succeeds with a valid branch" {
-	run git::branch_exists main
+# lib::git::branch_exists
+@test "lib::git::branch_exists succeeds with a valid branch" {
+	run lib::git::branch_exists main
 	assert_success
 }
 
-@test "git::remote_exists fails with an invalid branch" {
-	run git::branch_exists master
+@test "lib::git::remote_exists fails with an invalid branch" {
+	run lib::git::branch_exists master
 	assert_failure
 }

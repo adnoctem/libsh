@@ -1,16 +1,28 @@
-# -----------------
-# EDITORS
-# -----------------
+# .gitignore - Bash library
+
+###> general/editors ###
 
 # IntelliJ IDEA
-.idea
-
-# JetBrains Fleet
-.fleet
+.idea/*
+!.idea/dataSources.xml
 
 # VS Code
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+###>
 
-# Distribution folder
+###> general/secret ###
+
+# secrets
+secrets/*
+###>
+
+###> source/temp ###
+
+# distribution
 dist/*
 build/*
+###>
