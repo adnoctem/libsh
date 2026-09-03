@@ -68,6 +68,6 @@ repos:
     hooks:
       - id: prettier-format
         name: Prettier format
-        entry: bun x prettier --write "**/*.{md,json,yaml}"
+        entry: bun x prettier --write
         language: system
-        pass_filenames: false
+        files: \.(md|json|ya?ml)$

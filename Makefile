@@ -187,7 +187,7 @@ endif
 # ---------------------------
 
 .PHONY: init
-init: update-submodules tools-check
+init: update-submodules
 	$(call log_success, "$(PROJ_NAME) is ready for development!")
 
 .PHONY: update-submodules
