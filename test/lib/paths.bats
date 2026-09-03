@@ -20,6 +20,18 @@ setup() {
 	# Never let the real environment's XDG_* vars leak into a test that
 	# means to exercise the spec's own fallback defaults.
 	unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_STATE_HOME
+
+	# Default every test to a faked non-Darwin 'uname', so the "falls back
+	# to ~/.config"-style tests are deterministic regardless of which CI
+	# platform actually runs them -- without this, those tests only pass
+	# by accident on Linux runners and fail for real on macOS ones, since
+	# the function would then correctly take the real Darwin branch.
+	# Darwin-specific tests override this via fake_uname_darwin below.
+	cat >"$TEST_TMP/bin/uname" <<-'FAKE'
+		#!/usr/bin/env bash
+		echo "Linux"
+	FAKE
+	chmod +x "$TEST_TMP/bin/uname"
 }
 
 teardown() {

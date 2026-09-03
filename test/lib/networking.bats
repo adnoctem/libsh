@@ -13,6 +13,19 @@ setup() {
 	ORIGINAL_PATH="$PATH"
 	mkdir -p "$TEST_TMP/bin"
 	export PATH="$TEST_TMP/bin:$PATH"
+
+	# Default every test to a faked non-Darwin 'uname', so the Linux-mocked
+	# tests (fake 'ip', etc.) are deterministic regardless of which CI
+	# platform actually runs them -- without this, they only pass by
+	# accident on Linux runners and fail for real on macOS ones, since the
+	# function would then correctly take the real Darwin branch and talk
+	# to the real 'route'/'ifconfig' instead of the installed fakes.
+	# Darwin-specific tests override this via fake_uname_darwin below.
+	cat >"$TEST_TMP/bin/uname" <<-'FAKE'
+		#!/usr/bin/env bash
+		echo "Linux"
+	FAKE
+	chmod +x "$TEST_TMP/bin/uname"
 }
 
 teardown() {
@@ -381,7 +394,13 @@ install_fake_darwin_tools() {
 	# Genuine ambient-state check, same precedent as test/lib/git.bats
 	# testing against the real repo rather than mocking git -- /sys is a
 	# kernel-virtual filesystem this test can't redirect, and every Linux
-	# CI runner has at least a loopback interface to read.
+	# CI runner has at least a loopback interface to read. Guarded on the
+	# real filesystem, not the faked 'uname' from setup(): /sys genuinely
+	# doesn't exist on macOS, no matter what 'uname' claims.
+	if [[ ! -d /sys/class/net ]]; then
+		skip "/sys/class/net does not exist on this platform"
+	fi
+
 	run lib::networking::mac_address lo
 
 	assert_success
