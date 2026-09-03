@@ -102,7 +102,12 @@ function lib::apt::lists_age_days() {
     return 1
   fi
 
-  printf '%s' "$((($(date +%s) - $(stat -c %Y "$stamp")) / 86400))"
+  # '-c' is GNU-only; '-f' with a BSD-style format is the macOS/BSD stat
+  # equivalent (this module is Debian/APT-focused, but the timestamp read
+  # itself costs nothing to keep portable).
+  local mtime
+  mtime=$(stat -c %Y "$stamp" 2>/dev/null || stat -f %m "$stamp" 2>/dev/null)
+  printf '%s' "$((($(date +%s) - mtime) / 86400))"
 }
 
 #######################################

@@ -67,6 +67,10 @@ libc6"
 
 # lib::apt::is_installed
 @test "lib::apt::is_installed succeeds for an installed package" {
+	if ! command -v dpkg-query >/dev/null; then
+		skip "dpkg-query is needed; this module is Debian/APT-specific"
+	fi
+
 	run lib::apt::is_installed bash
 
 	assert_success

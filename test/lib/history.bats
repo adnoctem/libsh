@@ -104,11 +104,17 @@ echo unrelated'
 
 	lib::history::scrub "sup3rs3cr3tvalue" >/dev/null
 
-	assert_equal "$(stat -c '%a' "$HISTFILE")" "600"
+	# '-c' is GNU-only; '-f' with a BSD-style format is the macOS/BSD stat
+	# equivalent.
+	mode=$(stat -c '%a' "$HISTFILE" 2>/dev/null || stat -f '%Lp' "$HISTFILE" 2>/dev/null)
+	assert_equal "$mode" "600"
 }
 
 @test "lib::history::scrub leaves no temporary files behind" {
 	lib::history::scrub "sup3rs3cr3tvalue" >/dev/null
 
-	assert_equal "$(find "$TEST_TMP" -name 'history.libsh.*' | wc -l)" "0"
+	# The arithmetic context strips the leading whitespace BSD/macOS 'wc'
+	# pads its count with, which a bare command substitution would not.
+	local count=$(($(find "$TEST_TMP" -name 'history.libsh.*' | wc -l)))
+	assert_equal "$count" "0"
 }

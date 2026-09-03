@@ -32,8 +32,9 @@ function lib::secret::from_file() {
   fi
 
   # A secret every account on the box can read defeats the point of
-  # keeping it off the command line in the first place.
-  mode=$(stat -c '%a' "$path" 2>/dev/null || true)
+  # keeping it off the command line in the first place. '-c' is GNU-only;
+  # '-f' with a BSD-style format is the macOS/BSD stat equivalent.
+  mode=$(stat -c '%a' "$path" 2>/dev/null || stat -f '%Lp' "$path" 2>/dev/null || true)
   if [[ -n $mode && ! $mode =~ ^[0-7]?[0-7]00$ ]]; then
     lib::log::yellow "Secret file '$path' is mode $mode; 600 is recommended." >&2
   fi

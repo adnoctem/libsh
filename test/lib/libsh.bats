@@ -52,8 +52,10 @@ setup() {
 @test "lib/lib.sh reports how many modules it loaded" {
 	source "$REPO_ROOT/lib/lib.sh"
 
+	# The arithmetic context strips the leading whitespace BSD/macOS 'wc'
+	# pads its count with, which a bare command substitution would not.
 	local expected
-	expected=$(find "$REPO_ROOT/lib" -maxdepth 1 -name '*.sh' ! -name 'lib.sh' | wc -l)
+	expected=$(($(find "$REPO_ROOT/lib" -maxdepth 1 -name '*.sh' ! -name 'lib.sh' | wc -l)))
 
 	assert_equal "${LIBSH_LOADED:-0}" "$expected"
 }

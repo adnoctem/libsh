@@ -71,3 +71,9 @@ repos:
         entry: bun x prettier --write
         language: system
         files: \.(md|json|ya?ml)$
+        # Without this, pre-commit can batch matched files across several
+        # parallel invocations; concurrent 'bun x' processes then race to
+        # resolve/install the same 'prettier' package into a cold cache,
+        # which fails with "could not determine executable to run for
+        # package prettier" on the losing side.
+        require_serial: true

@@ -71,7 +71,10 @@ function lib::log::cyan() {
 function lib::log::timed() {
   local color=${1} message=${2:-} time
 
-  time=$(date --rfc-3339=seconds)
+  # '--rfc-3339' is GNU-only; '%z' (a bare offset with no colon, e.g.
+  # '-0500') is the portable part shared by GNU and BSD/macOS date, so the
+  # colon RFC 3339 requires is inserted afterward instead.
+  time=$(date '+%Y-%m-%d %H:%M:%S%z' | sed -E 's/([0-9]{2})([0-9]{2})$/\1:\2/')
 
   lib::log::write "$color" "[$time]: $message"
 }

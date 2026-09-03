@@ -53,6 +53,16 @@ jobs:
         with:
           persist-credentials: false
 
+      # macOS runners ship Apple's ancient /bin/bash (3.2, frozen at the
+      # last GPLv2 release), which the library's own bash >= 4.0 floor
+      # already excludes. Put Homebrew's modern bash ahead of it on PATH
+      # for the rest of this job.
+      - name: Ensure a modern bash on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+
       - name: Initialize the repository
         run: |
           make init

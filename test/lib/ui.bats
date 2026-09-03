@@ -28,6 +28,19 @@ teardown() {
 	[[ -n ${TEST_TMP:-} ]] && rm -rf "$TEST_TMP"
 }
 
+# 'script's syntax for running a command differs: GNU/util-linux script
+# (Linux) takes '-c COMMAND'; BSD script (macOS) takes the command as
+# trailing positional arguments after the log file instead.
+run_in_fake_tty() {
+	local cmd=$1
+
+	if [[ $(uname) == "Darwin" ]]; then
+		script -q /dev/null "$cmd"
+	else
+		script -qec "$cmd" /dev/null
+	fi
+}
+
 # lib::ui::confirm -- bats gives the tests no TTY, which is exactly the
 # unattended case these guards exist for.
 @test "lib::ui::confirm answers yes without a TTY when the default is y" {
@@ -63,7 +76,7 @@ teardown() {
 		skip "the 'script' utility is needed to fake a TTY"
 	fi
 
-	run script -qec "$TEST_TMP/confirm.sh" /dev/null <<<"y"
+	run run_in_fake_tty "$TEST_TMP/confirm.sh" <<<"y"
 
 	assert_output --partial "CONFIRMED"
 }
@@ -73,7 +86,7 @@ teardown() {
 		skip "the 'script' utility is needed to fake a TTY"
 	fi
 
-	run script -qec "$TEST_TMP/confirm.sh" /dev/null <<<""
+	run run_in_fake_tty "$TEST_TMP/confirm.sh" <<<""
 
 	assert_output --partial "DECLINED"
 	refute_output --partial "CONFIRMED"
