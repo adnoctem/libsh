@@ -1,3 +1,13 @@
+## [0.3.0](https://github.com/adnoctem/libsh/compare/v0.2.1...v0.3.0) (2026-09-03)
+
+### Features
+
+* **lib:** add XDG path resolution and network adapter/address lookup ([1a7c40f](https://github.com/adnoctem/libsh/commit/1a7c40f1f98d536d817e32bf869af3ef77410d10))
+
+### Bug Fixes
+
+* **test:** force uname in tests instead of relying on the CI platform ([5aa2ba8](https://github.com/adnoctem/libsh/commit/5aa2ba84d4aec48b31bb7ef7e7b6169dc89fa1bf))
+
 ## [0.2.1](https://github.com/adnoctem/libsh/compare/v0.2.0...v0.2.1) (2026-09-03)
 
 ### Bug Fixes
