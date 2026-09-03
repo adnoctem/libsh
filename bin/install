@@ -383,7 +383,9 @@ function main() {
 
 	local tmp
 	tmp=$(mktemp -d)
-	trap 'rm -rf "$tmp"' EXIT
+	# shellcheck disable=SC2064 # expanded now on purpose: 'tmp' is local to main()
+	# and would be unbound by the time a deferred (single-quoted) EXIT trap fires
+	trap "rm -rf '$tmp'" EXIT
 	cd "$tmp"
 
 	install::download_asset "$TAG" "CHECKSUMS_SHA256.txt"
