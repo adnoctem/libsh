@@ -1,3 +1,9 @@
+## [0.2.1](https://github.com/adnoctem/libsh/compare/v0.2.0...v0.2.1) (2026-09-03)
+
+### Bug Fixes
+
+* **bin:** stop 'install' exiting 1 after a fully successful run ([997293a](https://github.com/adnoctem/libsh/commit/997293a72f3d8a281f10e317686590ea0d584003))
+
 ## [0.2.0](https://github.com/adnoctem/libsh/compare/v0.1.1...v0.2.0) (2026-09-03)
 
 ### Features
