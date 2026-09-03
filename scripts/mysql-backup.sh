@@ -45,6 +45,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2016 # '$HOME' in output_dir's help text is a literal placeholder, not meant to expand
 declare -A OPTS_HELP=(
   [username]="Database user to connect as"
   [password]="Database password. Prefer --password-file or the MYSQL_PWD env var -- passing it here is visible to other local users via 'ps'."

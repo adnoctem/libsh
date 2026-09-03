@@ -9,7 +9,6 @@
 - Finish BATS testing for all of `lib`
 - Add BATS testing for all `scripts`
 - Transition to a BATS `setup_suite` to use more demanding tools like Container runtimes to `scripts` unit testing
-- Add implementation for the `install` executable
 
 ## 💡 Ideas
 

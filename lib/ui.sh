@@ -68,3 +68,54 @@ function lib::ui::confirm() {
   reply=${reply:-$default}
   [[ $reply =~ ^[Yy]$ ]]
 }
+
+# Print a startup banner and section dividers for entrypoint/CLI output, so
+# it's visually distinct from the wrapped application's own logs.
+#
+# SUGGESTED for adnoctem/libsh's lib/ directory (as banner.sh) -- staged here
+# for review since it doesn't exist in the shared repo yet (neither the
+# v0.1.1 release nor current main). Generalized rather than copied verbatim
+# from shopware-main's docker/lib/libadnoctem.sh: no hardcoded app name or
+# figlet-style ASCII art baked in, so it's actually reusable across images.
+#
+# Call site: containers' images/birdclaw/bin/entrypoint.sh, guarded with
+# `command -v lib::banner::print` since this image forward-pins a libsh
+# version that may not have shipped this module yet.
+#
+# NOTE: indented with tabs to satisfy containers' own shfmt config while this
+# file lives here. Reformat to libsh's 2-space convention (per its
+# .editorconfig) when copying this into adnoctem/libsh's lib/ directory.
+
+#######################################
+# Print a bordered startup banner.
+# Globals:
+#   None
+# Arguments:
+#   1 - Title to display (e.g. the image/app name)
+#   2 - Source URL to display (optional)
+# Outputs:
+#   The banner.
+#######################################
+function lib::ui::print_banner() {
+  local title=${1} source_url=${2:-}
+
+  lib::ui::print_banner_divider
+  printf 'Welcome to the Ad Noctem Collective build of %s!\n' "$title"
+  if [[ -n $source_url ]]; then
+    printf 'Read the entire source code on GitHub at: %s\n' "$source_url"
+  fi
+  lib::ui::print_banner_divider
+}
+
+#######################################
+# Print a divider line.
+# Globals:
+#   None
+# Arguments:
+#   None
+# Outputs:
+#   The divider.
+#######################################
+function lib::ui::print_banner_divider() {
+  printf '%60s\n' " " | tr ' ' '-'
+}

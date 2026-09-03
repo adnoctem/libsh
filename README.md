@@ -10,7 +10,7 @@
 [![GitHub top language](https://img.shields.io/github/languages/top/adnoctem/libsh)](https://www.gnu.org/software/bash/)
 [![GitHub License](https://img.shields.io/github/license/adnoctem/libsh?label=License)](https://opensource.org/license/mit)
 [![GitHub Tag](https://img.shields.io/github/v/tag/adnoctem/libsh?label=Version)](https://github.com/adnoctem/libsh/releases)
-[![Continuous Integration](https://github.com/adnoctem/libsh/actions/workflows/ci.yaml/badge.svg)](https://github.com/adnoctem/libsh/actions/workflows/ci.yaml)
+[![Testing](https://github.com/adnoctem/libsh/actions/workflows/testing.yaml/badge.svg)](https://github.com/adnoctem/libsh/actions/workflows/testing.yaml)
 [![GitHub last commit](https://img.shields.io/github/last-commit/adnoctem/libsh?label=Activity)](https://github.com/adnoctem/libsh/commits/main/)
 
 A library of open-source [MIT][license]-licensed [Bash][bash] scripts written and maintained by `Ad Noctem Collective` for use
@@ -18,12 +18,17 @@ with [Bash][bash] version 5 and above. Refer to the GNU Projects's in-depth [Bas
 information on how these scripts work. Scripts meant for direct execution by the user, an init system or other means of
 automation are located in the [`scripts`](scripts) directory. The [`lib`](lib) directory contains library scripts meant
 to be reused across files or even different repositories with things like [Git Submodules][git_submodules] or _contrib_
-scripts like [git_subtree]. You may of course take a look at other repositories of ours for tips on how to achieve
-reuse.
+scripts like [git_subtree]. The [`bin`](bin) directory holds standalone, curl-able entry points: [`install`](bin/install)
+deploys `lib` onto a machine (e.g. a container image) and wires it up to be sourced, while [`libtree`](bin/libtree)
+vendors `lib` into another repository via `git subtree`. See [`bin/README.md`](bin/README.md) for details on both. You
+may of course take a look at other repositories of ours for tips on how to achieve reuse.
 
 ## ✨ TL;DR
 
 ```shell
+# install the 'lib' directory onto this machine and wire it up for sourcing
+curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | bash
+
 # refer to the script's '--help' output for more information
 ./scripts/archive-create.sh --sources /var/www/html --output-dir /opt/backup/destination
 ```

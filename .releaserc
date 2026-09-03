@@ -31,12 +31,15 @@
       }
     ],
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "tools/release-prepare.sh --version ${nextRelease.version}"
+      }
+    ],
+    [
       "@semantic-release/github",
       {
         "assets": [
-          {
-            "path": "dist/*.zip"
-          },
           {
             "path": "dist/*.tar.gz"
           },
@@ -56,7 +59,8 @@
       "@semantic-release/git",
       {
         "assets": [
-          "CHANGELOG.md"
+          "CHANGELOG.md",
+          "Makefile"
         ]
       }
     ]

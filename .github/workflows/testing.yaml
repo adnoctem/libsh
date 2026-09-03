@@ -1,0 +1,98 @@
+name: "Testing"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, next]
+  pull_request:
+    branches: [main, next]
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: "${{ github.workflow }}@${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Initialize the repository
+        run: |
+          make init
+
+      - name: Lint the repository
+        run: |
+          make lint
+
+  test:
+    name: Test
+    needs: [lint]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04, macos-latest]
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Initialize the repository
+        run: |
+          make init
+
+      - name: Set up BATS
+        uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43 # v4.0.0
+
+      - name: Run the test suite
+        run: |
+          make test
+
+  dispatch:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    needs: [test]
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Dispatch a release workflow run
+        # release only after every platform in the test matrix succeeded
+        # ref: https://github.com/actions/runner/issues/1251
+        if: ${{ github.event_name == 'push' && always() && !contains(join(needs.*.result, ','), 'failure') }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        with:
+          github-token: "${{ env.GITHUB_TOKEN }}"
+          script: |
+            const payload = {
+              run_id: "${{ github.run_id }}",
+              sha: "${{ github.sha }}"
+            }
+
+            console.log("Sending event payload", JSON.stringify(payload, null, 2));
+
+            const { owner, repo } = context.repo;
+            await github.rest.repos.createDispatchEvent({
+              owner,
+              repo,
+              event_type: 'release',
+              client_payload: payload
+            });

@@ -6,7 +6,7 @@
 #
 # This is a self-contained Bash script, shipped and used as an executable. Install with the following command:
 #
-# curl -sLJO https://github.com/adnoctem/libsh/bin/libtree
+# curl -LJO https://raw.githubusercontent.com/adnoctem/libsh/main/bin/libtree
 #
 # ref: https://gist.github.com/tswaters/542ba147a07904b1f3f5
 

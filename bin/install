@@ -1,5 +1,411 @@
 #!/usr/bin/env bash
+#
+# Install libsh's `lib` directory onto this machine (e.g. a container image)
+# and wire it up to be sourced by interactive and non-interactive shells.
+#
+# This is a self-contained Bash script, shipped and used as an executable —
+# it cannot depend on `lib/` being present, since that's the thing it
+# installs. Install and run it with:
+#
+# curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | bash
+#
+# Configuration is via environment variables (see 'install --help'), which
+# makes it usable unattended in a Dockerfile RUN step, e.g.:
+#
+# RUN curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install \
+#       | LIBSH_VERSION=1.2.0 bash
+#
+# For vendoring libsh's sources into another *repository* instead of onto a
+# machine, use ./libtree, not this script.
 
-# this is a WIP - this will install the scripts from the latest release onto your machine
+set -euo pipefail
 
-echo "Installing libsh..."
+# -------------------------
+#   GLOBAL defaults
+# -------------------------
+LIBSH_REPO="${LIBSH_REPO:-adnoctem/libsh}"
+LIBSH_VERSION="${LIBSH_VERSION:-latest}"
+LIBSH_PROFILE_TARGETS="${LIBSH_PROFILE_TARGETS:-profile.d,bash_env}"
+LIBSH_NO_MODIFY_PROFILE="${LIBSH_NO_MODIFY_PROFILE:-}"
+INCLUDE_TOOLS="${INCLUDE_TOOLS:-}"
+
+if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+	LIBSH_INSTALL_DIR="${LIBSH_INSTALL_DIR:-/usr/local/lib/libsh}"
+else
+	LIBSH_INSTALL_DIR="${LIBSH_INSTALL_DIR:-$HOME/.local/lib/libsh}"
+fi
+LIBSH_TOOLS_DIR="${LIBSH_TOOLS_DIR:-$(dirname -- "$LIBSH_INSTALL_DIR")/libsh-tools}"
+
+# -------------------------
+#   Utility functions
+# -------------------------
+
+# Write un-colored output to stdout
+log() {
+	if [[ $# -eq 1 ]]; then
+		echo -e "$1"
+	else
+		echo -e "\033[1;${1}${2}\033[0m"
+	fi
+}
+
+# Write red output to stderr
+lib::log::red() { log "31m" "${1}" >&2; }
+
+# Write yellow output to stdout
+lib::log::yellow() { log "33m" "${1}"; }
+
+# Write green output to stdout
+lib::log::green() { log "32m" "${1}"; }
+
+# Check if a package is installed
+lib::package::is_executable() {
+	local package=${1}
+	[[ -n $package ]] && command -v "$package" &>/dev/null
+}
+
+#######################################
+# Print the usage output for the script.
+# Globals:
+#   None
+# Arguments:
+#   None
+# Outputs:
+#   Writes usage to stdout
+#######################################
+function install::usage() {
+	local script_name
+	script_name=$(basename "${0}")
+
+	cat <<EOF
+$script_name
+
+Install libsh's 'lib' directory onto this machine and wire it up to be
+sourced by interactive and non-interactive shells.
+
+Usage: ./$script_name [OPTIONS]
+
+  -v, --version <tag>            Release to install, e.g. '1.2.0' (default: latest)
+  -r, --repo <owner/repo>        GitHub repository to install from (default: adnoctem/libsh)
+  -d, --install-dir <path>       Where 'lib' is deployed (default: /usr/local/lib/libsh as root,
+                                  else \$HOME/.local/lib/libsh)
+  -p, --profile-targets <list>   Comma-separated subset of profile.d,bash_env,bashrc,zshrc
+                                  (default: profile.d,bash_env)
+      --no-modify-profile        Deploy files only; do not touch any shell profile
+      --include-tools            Also install the maintenance-only 'tools' bundle
+      --tools-dir <path>         Where 'tools' is deployed when --include-tools is set
+                                  (default: alongside --install-dir, named 'libsh-tools')
+  -h, --help                     Show this help message and exit
+
+Every option can also be set as an environment variable, e.g. LIBSH_VERSION,
+LIBSH_REPO, LIBSH_INSTALL_DIR, LIBSH_PROFILE_TARGETS, LIBSH_NO_MODIFY_PROFILE,
+INCLUDE_TOOLS, LIBSH_TOOLS_DIR — which is how the one-line curl form is
+configured, since piping into 'bash' leaves no room for flags.
+EOF
+}
+
+#######################################
+# Check if the required dependencies for the script are installed.
+# Globals:
+#   None
+# Arguments:
+#   None
+# Returns:
+#   0 if all prerequisites were found, exits 1 otherwise.
+#######################################
+function install::checks() {
+	local prerequisite
+	for prerequisite in curl tar; do
+		if ! lib::package::is_executable "$prerequisite"; then
+			lib::log::red "Could not find package '$prerequisite' in system PATH. Please install '$prerequisite' to use 'install'!"
+			exit 1
+		fi
+	done
+
+	if ! lib::package::is_executable sha256sum && ! lib::package::is_executable shasum; then
+		lib::log::red "Could not find 'sha256sum' or 'shasum' in system PATH. Please install one to use 'install'!"
+		exit 1
+	fi
+}
+
+#######################################
+# Compute the SHA256 checksum of a file, preferring sha256sum and falling
+# back to 'shasum -a 256' (e.g. on macOS).
+# Arguments:
+#   1 - File path
+# Outputs:
+#   The hex digest to stdout.
+#######################################
+function install::sha256() {
+	local file=${1}
+
+	if lib::package::is_executable sha256sum; then
+		sha256sum -- "$file" | cut -d ' ' -f 1
+	else
+		shasum -a 256 -- "$file" | cut -d ' ' -f 1
+	fi
+}
+
+#######################################
+# Resolve LIBSH_VERSION into a concrete release tag and bare version.
+# Globals:
+#   LIBSH_REPO, LIBSH_VERSION (read)
+#   TAG, VERSION (written)
+# Returns:
+#   0 on success, exits 1 if 'latest' could not be resolved.
+#######################################
+function install::resolve_version() {
+	if [[ $LIBSH_VERSION == "latest" ]]; then
+		local effective
+		effective=$(curl -fsSL -o /dev/null -w '%{url_effective}' -L "https://github.com/$LIBSH_REPO/releases/latest")
+
+		TAG="${effective##*/tag/}"
+		if [[ -z $TAG || $TAG == "$effective" ]]; then
+			lib::log::red "Could not resolve the latest release for '$LIBSH_REPO'. Is a release published yet?"
+			exit 1
+		fi
+	else
+		TAG="$LIBSH_VERSION"
+		[[ $TAG == v* ]] || TAG="v$TAG"
+	fi
+
+	VERSION="${TAG#v}"
+}
+
+#######################################
+# Download one release asset into the current directory.
+# Globals:
+#   LIBSH_REPO (read)
+# Arguments:
+#   1 - Release tag
+#   2 - Asset file name
+# Returns:
+#   0 on success, exits 1 on a download failure.
+#######################################
+function install::download_asset() {
+	local tag=${1} asset=${2} url
+	url="https://github.com/$LIBSH_REPO/releases/download/$tag/$asset"
+
+	lib::log::yellow "Downloading $asset ($tag) ..."
+	if ! curl -fsSL -o "$asset" "$url"; then
+		lib::log::red "Failed to download '$asset' from $url"
+		exit 1
+	fi
+}
+
+#######################################
+# Verify a downloaded asset against CHECKSUMS_SHA256.txt in the same
+# directory.
+# Arguments:
+#   1 - Asset file name (relative to the current directory)
+# Returns:
+#   0 on success, exits 1 on a mismatch or a missing checksum entry.
+#######################################
+function install::verify_checksum() {
+	local asset=${1} expected actual
+
+	expected=$(grep -F "  $asset" CHECKSUMS_SHA256.txt | cut -d ' ' -f 1)
+	if [[ -z $expected ]]; then
+		lib::log::red "No checksum entry for '$asset' in CHECKSUMS_SHA256.txt."
+		exit 1
+	fi
+
+	actual=$(install::sha256 "$asset")
+	if [[ $expected != "$actual" ]]; then
+		lib::log::red "Checksum mismatch for '$asset': expected $expected, got $actual."
+		exit 1
+	fi
+
+	lib::log::green "Checksum OK: $asset"
+}
+
+#######################################
+# Extract a bundle tarball into a destination directory, stripping its
+# top-level directory component.
+# Arguments:
+#   1 - Tarball path
+#   2 - Destination directory
+#######################################
+function install::extract_bundle() {
+	local archive=${1} destination=${2}
+
+	mkdir -p "$destination"
+	tar -xzf "$archive" -C "$destination" --strip-components=1
+	lib::log::green "Installed into $destination"
+}
+
+#######################################
+# Write /etc/profile.d/libsh.sh, sourcing the installed lib.sh. libsh owns
+# this file entirely, so (re)writing it outright is inherently idempotent.
+# Globals:
+#   LIBSH_INSTALL_DIR (read)
+#######################################
+function install::write_profile_d() {
+	if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+		lib::log::yellow "Skipping /etc/profile.d/libsh.sh: not running as root."
+		return
+	fi
+
+	mkdir -p /etc/profile.d
+	printf '# Managed by libsh'"'"'s install script; do not edit by hand.\n. "%s/lib.sh"\n' "$LIBSH_INSTALL_DIR" >/etc/profile.d/libsh.sh
+	lib::log::green "Wrote /etc/profile.d/libsh.sh"
+}
+
+#######################################
+# Point BASH_ENV at /etc/profile.d/libsh.sh in /etc/environment, so
+# non-interactive shells (most container RUN/CMD/ENTRYPOINT steps) source
+# it too. Never overwrites an existing BASH_ENV value that isn't already
+# ours, since /etc/environment is shared system-wide state.
+# Globals:
+#   None
+#######################################
+function install::write_bash_env() {
+	if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+		lib::log::yellow "Skipping BASH_ENV in /etc/environment: not running as root."
+		return
+	fi
+
+	local target='BASH_ENV="/etc/profile.d/libsh.sh"'
+	touch /etc/environment
+
+	if grep -qF "$target" /etc/environment; then
+		return
+	fi
+
+	if grep -q '^BASH_ENV=' /etc/environment; then
+		lib::log::yellow "/etc/environment already sets BASH_ENV; leaving it as-is. Source /etc/profile.d/libsh.sh from it manually if you want libsh in non-interactive shells."
+		return
+	fi
+
+	echo "$target" >>/etc/environment
+	lib::log::green "Set BASH_ENV in /etc/environment"
+}
+
+#######################################
+# Append a marker-guarded sourcing block to a shell rc file, skipping if
+# the marker is already present.
+# Globals:
+#   LIBSH_INSTALL_DIR (read)
+# Arguments:
+#   1 - Path to the rc file (e.g. $HOME/.bashrc)
+#######################################
+function install::append_rc() {
+	local rc_file=${1} marker="# >>> libsh installer >>>"
+
+	if [[ -f $rc_file ]] && grep -qF "$marker" "$rc_file"; then
+		lib::log::yellow "$rc_file already sources libsh; skipping."
+		return
+	fi
+
+	{
+		echo "$marker"
+		echo ". \"$LIBSH_INSTALL_DIR/lib.sh\""
+		echo "# <<< libsh installer <<<"
+	} >>"$rc_file"
+	lib::log::green "Updated $rc_file"
+}
+
+#######################################
+# Wire up sourcing for every requested, comma-separated profile target.
+# Globals:
+#   LIBSH_PROFILE_TARGETS, LIBSH_NO_MODIFY_PROFILE (read)
+#######################################
+function install::configure_profile() {
+	if [[ -n $LIBSH_NO_MODIFY_PROFILE ]]; then
+		lib::log::yellow "LIBSH_NO_MODIFY_PROFILE is set; not touching any shell profile."
+		return
+	fi
+
+	local -a targets
+	IFS=',' read -ra targets <<<"$LIBSH_PROFILE_TARGETS"
+
+	local target
+	for target in "${targets[@]}"; do
+		case "$target" in
+		profile.d) install::write_profile_d ;;
+		bash_env) install::write_bash_env ;;
+		bashrc) install::append_rc "$HOME/.bashrc" ;;
+		zshrc) install::append_rc "$HOME/.zshrc" ;;
+		"") ;;
+		*) lib::log::yellow "Unknown profile target '$target'; skipping." ;;
+		esac
+	done
+}
+
+# --------------------------------
+#   MAIN
+# --------------------------------
+function main() {
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+		-v | --version)
+			LIBSH_VERSION="$2"
+			shift 2
+			;;
+		-r | --repo)
+			LIBSH_REPO="$2"
+			shift 2
+			;;
+		-d | --install-dir)
+			LIBSH_INSTALL_DIR="$2"
+			shift 2
+			;;
+		-p | --profile-targets)
+			LIBSH_PROFILE_TARGETS="$2"
+			shift 2
+			;;
+		--no-modify-profile)
+			LIBSH_NO_MODIFY_PROFILE=1
+			shift
+			;;
+		--include-tools)
+			INCLUDE_TOOLS=1
+			shift
+			;;
+		--tools-dir)
+			LIBSH_TOOLS_DIR="$2"
+			shift 2
+			;;
+		-h | --help)
+			install::usage
+			exit 0
+			;;
+		*)
+			lib::log::red "Unknown option: $1"
+			install::usage
+			exit 1
+			;;
+		esac
+	done
+
+	install::checks
+	install::resolve_version
+
+	local tmp
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT
+	cd "$tmp"
+
+	install::download_asset "$TAG" "CHECKSUMS_SHA256.txt"
+
+	local lib_asset="libsh-lib-$VERSION.tar.gz"
+	install::download_asset "$TAG" "$lib_asset"
+	install::verify_checksum "$lib_asset"
+	install::extract_bundle "$lib_asset" "$LIBSH_INSTALL_DIR"
+
+	if [[ -n $INCLUDE_TOOLS ]]; then
+		local tools_asset="libsh-tools-$VERSION.tar.gz"
+		install::download_asset "$TAG" "$tools_asset"
+		install::verify_checksum "$tools_asset"
+		install::extract_bundle "$tools_asset" "$LIBSH_TOOLS_DIR"
+	fi
+
+	install::configure_profile
+
+	lib::log::green "libsh $VERSION installed into $LIBSH_INSTALL_DIR"
+}
+
+# ------------
+# 'main' call
+# ------------
+main "$@"

@@ -74,6 +74,7 @@ teardown() {
 	chmod +x "$TEST_TMP/bin/python3"
 
 	export FAKE_VENV_LOG="$TEST_TMP/venv-path.log"
+	# shellcheck disable=SC2030,SC2031 # each bats @test runs in its own process; this scoping is intentional
 	export PATH="$TEST_TMP/bin:$PATH"
 	cd "$TEST_TMP/fresh" || return 1
 
@@ -93,6 +94,7 @@ teardown() {
 	FAKE
 	chmod +x "$TEST_TMP/bin/python3"
 
+	# shellcheck disable=SC2030,SC2031 # each bats @test runs in its own process; this scoping is intentional
 	export PATH="$TEST_TMP/bin:$PATH"
 	cd "$TEST_TMP/fresh2" || return 1
 
@@ -107,6 +109,7 @@ teardown() {
 	printf '#!/usr/bin/env bash\nexit 4\n' >"$TEST_TMP/bin/python3"
 	chmod +x "$TEST_TMP/bin/python3"
 
+	# shellcheck disable=SC2030,SC2031 # each bats @test runs in its own process; this scoping is intentional
 	export PATH="$TEST_TMP/bin:$PATH"
 	cd "$TEST_TMP/fresh3" || return 1
 

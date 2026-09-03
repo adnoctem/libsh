@@ -17,17 +17,17 @@ make init
 
 The available targets:
 
-| Command             | Arguments        | Purpose                                                      |
-| ------------------- | ---------------- | ------------------------------------------------------------ |
-| `init`              |                  | Check out the BATS submodules and verify the required tooling |
-| `format`            |                  | Format all Bash sources in place with `shfmt`                 |
-| `lint`              |                  | Run every linter: `shellcheck`, `shfmt`, `markdownlint`, `actionlint`, `gitleaks` |
-| `test`              | `WHAT`           | Run the BATS test suite                                       |
-| `build`             | `WHAT`           | Create distribution archives in `dist/`                       |
-| `all`               |                  | Clean `dist/`, then build every archive                       |
-| `clean`             |                  | Remove the `dist/` output directory                           |
-| `version`           |                  | Print the current version                                     |
-| `tools-check`       |                  | Report which required tools are missing, and fail if any are  |
+| Command       | Arguments | Purpose                                                                           |
+| ------------- | --------- | --------------------------------------------------------------------------------- |
+| `init`        |           | Check out the BATS submodules and verify the required tooling                     |
+| `format`      |           | Format all Bash sources in place with `shfmt`                                     |
+| `lint`        |           | Run every linter: `shellcheck`, `shfmt`, `markdownlint`, `actionlint`, `gitleaks` |
+| `test`        | `WHAT`    | Run the BATS test suite                                                           |
+| `build`       | `WHAT`    | Create distribution archives in `dist/`                                           |
+| `all`         |           | Clean `dist/`, then build every archive                                           |
+| `clean`       |           | Remove the `dist/` output directory                                               |
+| `version`     |           | Print the current version                                                         |
+| `tools-check` |           | Report which required tools are missing, and fail if any are                      |
 
 Every target also accepts `PRINT_HELP=y` to describe itself instead of running:
 
@@ -72,11 +72,11 @@ to start until they are all present, rather than failing halfway through:
 
 | Tool           | Scope                                                     |
 | -------------- | --------------------------------------------------------- |
-| `shellcheck`   | `lib/*.sh`, `scripts/*.sh`, and the executables in `bin/`  |
-| `shfmt`        | Formatting drift across the repository                     |
-| `markdownlint` | All Markdown outside `test/` and `secrets/`                |
-| `actionlint`   | GitHub Actions workflows                                   |
-| `gitleaks`     | Secret scanning                                            |
+| `shellcheck`   | `lib/*.sh`, `scripts/*.sh`, and the executables in `bin/` |
+| `shfmt`        | Formatting drift across the repository                    |
+| `markdownlint` | All Markdown outside `test/` and `secrets/`               |
+| `actionlint`   | GitHub Actions workflows                                  |
+| `gitleaks`     | Secret scanning                                           |
 
 Individual linters can be run on their own, which is useful while iterating:
 
@@ -286,7 +286,7 @@ repository in separate PRs.
 Naming follows [`NOMENCLATURE.md`](NOMENCLATURE.md); most of the rules below are enforced by `make test` rather than by
 review.
 
-**Everywhere**
+**Everywhere:**
 
 - Must target Bash 4.0 or higher (associative arrays are used; `local -n` namerefs are deliberately avoided so the
   library also runs on 4.0–4.2)
@@ -304,6 +304,14 @@ review.
 - Anything destructive is gated behind `lib::ui::confirm`, with `-y`/`--yes` to bypass it for unattended runs
 - Secrets are read from a file or an environment variable, never accepted as a plain command-line argument alone
 
+**Tooling under `tools/`**
+
+- Repository-maintenance-only: scripts here only make sense run against a full `libsh` checkout (this repo's own
+  release process), unlike `scripts/`'s user-facing operational scripts. They are never installed onto a target
+  machine by [`bin/install`](../bin/install) unless explicitly requested with `INCLUDE_TOOLS=1`
+- Follow the same conventions as `scripts/` above (shebang, `set -euo pipefail`, `lib::opts::parse`, `--help`,
+  `--check-prerequisites`, `--dry-run` for anything that changes state)
+
 **Library modules under `lib/`**
 
 - Begin with `# shellcheck shell=bash` on the first line
@@ -314,20 +322,19 @@ review.
 
 ### Versioning
 
-The project follows [SemVer](https://semver.org/). The current version is the `VERSION` variable in the
-[`Makefile`](../Makefile), which [`make version`](../Makefile) prints and the release workflow reads.
+The project follows [SemVer](https://semver.org/) and versions are cut automatically by
+[semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/)
+on `main` — there is no manual version bump to make. `fix:` commits bump PATCH, `feat:` commits bump MINOR, and a
+`BREAKING CHANGE:` footer (or a `!` after the type/scope) bumps MAJOR. Describe breaking changes and migration
+instructions in that footer; semantic-release surfaces it in the generated release notes.
 
-Any change to the library code (`lib/`), the scripts (`scripts/`), or anything that alters the public surface of either
-requires a version bump. Documentation-only changes do not require one.
+The `VERSION` variable in the [`Makefile`](../Makefile) (read by [`make version`](../Makefile)) reflects the most
+recently released version between releases. It is written back automatically as part of the release commit — do not
+edit it by hand.
 
-Breaking (backwards incompatible) changes must:
-
-1. Bump the MAJOR version in the `Makefile`
-2. Describe the breaking change and migration instructions in the commit message footer
-3. Update the release notes if they exist
-
-New features and non-breaking enhancements bump the MINOR version. Bugfixes and documentation bumps increment the
-PATCH version.
-
-Pushing a version bump to `main` triggers [`cd.yaml`](../.github/workflows/cd.yaml), which tags `v<version>` and
-publishes the archives from `make build` as a GitHub release.
+A green [`testing.yaml`](../.github/workflows/testing.yaml) run on `main` dispatches
+[`release.yaml`](../.github/workflows/release.yaml), which runs semantic-release. Its `prepareCmd`
+([`tools/release-prepare.sh`](../tools/release-prepare.sh)) syncs the `Makefile`'s `VERSION` to the resolved next
+version, rebuilds `dist/` via `make build`, and writes `dist/CHECKSUMS_SHA256.txt`, before semantic-release tags the
+release, publishes those archives as GitHub release assets, and commits the updated `Makefile` and `CHANGELOG.md`
+back to `main`.

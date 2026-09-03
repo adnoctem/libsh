@@ -36,6 +36,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2016 # '$HOME' in output_dir's help text is a literal placeholder, not meant to expand
 declare -A OPTS_HELP=(
   [sources]="Comma-separated list of files/directories to archive"
   [name]="Base name for the archive (default: the first source's basename)"

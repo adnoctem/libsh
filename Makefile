@@ -49,6 +49,7 @@ OUT_DIR := $(ROOT_DIR)/dist
 SCRIPT_DIR := $(ROOT_DIR)/scripts
 LIB_DIR := $(ROOT_DIR)/lib
 BIN_DIR := $(ROOT_DIR)/bin
+TOOLS_DIR := $(ROOT_DIR)/tools
 CI_DIR := $(ROOT_DIR)/.github
 CI_LINTER_DIR := $(CI_DIR)/linters
 TEST_DIR := $(ROOT_DIR)/test
@@ -64,9 +65,9 @@ GITLEAKS_CONFIG := $(CI_LINTER_DIR)/.gitleaks.toml
 # The directories that ship in a release, and therefore the ones the linters
 # care about. 'bin/' holds executables without a .sh suffix, so it is matched
 # by type rather than by extension.
-BUNDLES := scripts lib bin
+BUNDLES := scripts lib bin tools
 BIN_SOURCES := $(shell find $(BIN_DIR) -maxdepth 1 -type f ! -name '*.md' 2>/dev/null)
-SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(BIN_SOURCES)
+SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES)
 
 # Prefer a bats on PATH (CI installs one) and fall back to the submodule.
 BATS := $(shell command -v bats 2>/dev/null || echo $(TEST_DIR)/bats/core/bin/bats)

@@ -10,7 +10,7 @@ not commands in a shell.** `ls scripts/` sorts alphabetically, so the
 leading token decides what clusters together. Verb-first scatters every
 MySQL script across the listing; noun-first puts them in one block:
 
-```
+```text
 verb-first                     noun-first
 -----------------------------  -----------------------------
 backup-mysql.sh                arch-update-mirrors.sh
@@ -41,7 +41,7 @@ keeps that from turning into a free-for-all, and `ls scripts/ | grep
 
 ## Grammar
 
-```
+```text
 <domain>-<verb>[-<object>].sh
 ```
 
@@ -66,23 +66,23 @@ Singular domain, plural object where the object is naturally plural:
 
 Extend this table in a PR; do not invent verbs per script.
 
-| Verb      | Use for                                          |
-| --------- | ------------------------------------------------ |
-| `backup`  | Create a point-in-time copy of something         |
-| `restore` | Load a backup back into a live system            |
-| `sync`    | Reconcile two locations/systems                  |
-| `deploy`  | Ship a build/artifact to a target                |
-| `install` | Set up a dependency or tool on this machine      |
-| `update`  | Change an existing thing in place                |
-| `remove`  | Delete/decommission something                    |
-| `test`    | Validate/check without changing anything         |
-| `new`     | Create a new instance of something from scratch  |
-| `convert` | Transform data from one format to another        |
-| `invoke`  | Run an arbitrary named task/pipeline             |
-| `migrate` | Move an existing system to a new shape in place  |
-| `compare` | Diff two things and report, changing neither     |
+| Verb      | Use for                                              |
+| --------- | ---------------------------------------------------- |
+| `backup`  | Create a point-in-time copy of something             |
+| `restore` | Load a backup back into a live system                |
+| `sync`    | Reconcile two locations/systems                      |
+| `deploy`  | Ship a build/artifact to a target                    |
+| `install` | Set up a dependency or tool on this machine          |
+| `update`  | Change an existing thing in place                    |
+| `remove`  | Delete/decommission something                        |
+| `test`    | Validate/check without changing anything             |
+| `new`     | Create a new instance of something from scratch      |
+| `convert` | Transform data from one format to another            |
+| `invoke`  | Run an arbitrary named task/pipeline                 |
+| `migrate` | Move an existing system to a new shape in place      |
+| `compare` | Diff two things and report, changing neither         |
 | `list`    | Enumerate what exists and print it, changing nothing |
-| `create`  | Produce a new artifact from existing inputs      |
+| `create`  | Produce a new artifact from existing inputs          |
 
 `create` vs `new`: `new` scaffolds from nothing (`mysql-new-database.sh`),
 `create` builds an artifact out of inputs you already have
@@ -97,32 +97,32 @@ the one that needs a confirmation gate.
 Derived mechanically from the filename: hyphens become underscores.
 Library functions are `lib::<filename>::<function>` without exception --
 `test/lib/naming.bats` enforces it, so the full set of provided functions
-can be enumerated by grepping for the prefix. Library *filenames* are
+can be enumerated by grepping for the prefix. Library _filenames_ are
 short but never abbreviated: `permissions.sh`, not `perm.sh`.
 
-| File                        | Prefix                    |
-| --------------------------- | ------------------------- |
-| `mysql-backup.sh`           | `mysql_backup::`          |
-| `mysql-migrate-charset.sh`  | `mysql_migrate_charset::` |
-| `dns-compare-zones.sh`      | `dns_compare_zones::`     |
+| File                       | Prefix                    |
+| -------------------------- | ------------------------- |
+| `mysql-backup.sh`          | `mysql_backup::`          |
+| `mysql-migrate-charset.sh` | `mysql_migrate_charset::` |
+| `dns-compare-zones.sh`     | `dns_compare_zones::`     |
 
 Every script keeps the same three-function shape: `::prerequisites`,
 `::exec`, and `main`.
 
 ## Rename table
 
-| Current                     | New                        | Status                                   |
-| --------------------------- | -------------------------- | ---------------------------------------- |
-| `backup-mysql.sh`           | `mysql-backup.sh`          | done                                     |
-| `restore-mysql.sh`          | `mysql-restore.sh`         | done                                     |
-| `mysql-migrate-charset.sh`  | *(unchanged)*              | already conformed                        |
-| `tar-archive.sh`            | `archive-create.sh`        | done; retired to `secrets/scripts/`      |
-| *(new)*                     | `archive-extract.sh`       | done; the counterpart tar-archive lacked |
-| *(new)*                     | `ubuntu-update-packages.sh` | done                                    |
-| *(new)*                     | `ubuntu-update-mirrors.sh` | done                                     |
-| `dig-compare-zones.sh`      | `dns-compare-zones.sh`     | done; retired to `secrets/scripts/`      |
-| `arch-packages.sh`          | `arch-update-packages.sh`  | done; split from the `update` subcommand |
-| `arch-packages.sh`          | `arch-update-mirrors.sh`   | done; split from the `mirrors` subcommand |
+| Current                    | New                         | Status                                    |
+| -------------------------- | --------------------------- | ----------------------------------------- |
+| `backup-mysql.sh`          | `mysql-backup.sh`           | done                                      |
+| `restore-mysql.sh`         | `mysql-restore.sh`          | done                                      |
+| `mysql-migrate-charset.sh` | _(unchanged)_               | already conformed                         |
+| `tar-archive.sh`           | `archive-create.sh`         | done; retired to `secrets/scripts/`       |
+| _(new)_                    | `archive-extract.sh`        | done; the counterpart tar-archive lacked  |
+| _(new)_                    | `ubuntu-update-packages.sh` | done                                      |
+| _(new)_                    | `ubuntu-update-mirrors.sh`  | done                                      |
+| `dig-compare-zones.sh`     | `dns-compare-zones.sh`      | done; retired to `secrets/scripts/`       |
+| `arch-packages.sh`         | `arch-update-packages.sh`   | done; split from the `update` subcommand  |
+| `arch-packages.sh`         | `arch-update-mirrors.sh`    | done; split from the `mirrors` subcommand |
 
 Each rename lands in the same PR as the update to its external call
 sites (cron, CI, docs), so the two names never coexist. A replaced script
