@@ -1,3 +1,9 @@
+## [0.4.0](https://github.com/adnoctem/libsh/compare/v0.3.0...v0.4.0) (2026-09-11)
+
+### Features
+
+* **lib:** add lossless secret resolution and returning TCP waits ([0590f23](https://github.com/adnoctem/libsh/commit/0590f23328b56e466b94331745d500cf52112a06))
+
 <!-- markdownlint-disable MD004 MD024 -->
 <!-- Generated release sections repeat headings and may use different bullet styles. -->
 
