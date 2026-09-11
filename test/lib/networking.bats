@@ -1,13 +1,14 @@
 #!/usr/bin/env bats
 
 setup() {
-	REPO_ROOT=$(git rev-parse --show-toplevel)
+	REPO_ROOT=${REPO_ROOT:-$(git rev-parse --show-toplevel)}
 
 	load "$REPO_ROOT/test/bats/plugins/bats-support/load"
 	load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
 
 	source "$REPO_ROOT/lib/log.sh"
 	source "$REPO_ROOT/lib/networking.sh"
+	source "$REPO_ROOT/lib/utils.sh"
 
 	TEST_TMP=$(mktemp -d)
 	ORIGINAL_PATH="$PATH"
@@ -65,6 +66,191 @@ install_fake_trurl() {
 		esac
 	FAKE
 	chmod +x "$TEST_TMP/bin/trurl"
+}
+
+@test "endpoint parser handles encoded userinfo, paths, queries, IPv4 and IPv6" {
+	local uri host='' port='' expected
+	while IFS='|' read -r uri expected; do
+		lib::networking::endpoint_from_uri uri host port --default-port 5432
+		[[ "$host:$port" == "$expected" ]]
+	done <<-'CASES'
+		postgres://user:p%40ss%3A%2F%3F%23@db.example:05432/app?host=evil:9#fragment|db.example:5432
+		mysql://127.0.0.1/db|127.0.0.1:5432
+		postgresql://[::1]:65535/db|::1:65535
+		postgres://[2001:db8::1]/db|2001:db8::1:5432
+		postgres://[::ffff:192.0.2.1]:1|::ffff:192.0.2.1:1
+		postgres://[1:2:3:4:5:6:192.0.2.1]:1|1:2:3:4:5:6:192.0.2.1:1
+		custom+db://a!$&'()*+,;=:p%25@db.internal./name%20here|db.internal.:5432
+		postgres://localhost?port=1#host=other|localhost:5432
+	CASES
+}
+
+@test "endpoint parser rejects unsupported authorities and leaves both outputs unchanged" {
+	local uri host=oldhost port=oldport
+	while IFS= read -r uri; do
+		if lib::networking::endpoint_from_uri uri host port --default-port 5432; then
+			printf 'Unexpected acceptance: %s\n' "$uri"
+			return 1
+		fi
+		[[ $host == oldhost && $port == oldport ]]
+	done <<-'CASES'
+		db:5432
+		1postgres://db
+		postgres:///db
+		postgres://user@@db:5432
+		postgres://user:%GG@db:5432
+		postgres://db/path%
+		postgres://db:0
+		postgres://db:65536
+		postgres://db:9999999999999999999999
+		postgres://db:
+		postgres://db:-1
+		postgres://db:1+2
+		postgres://db:5432,other:5432
+		postgres://db,other
+		postgres://::1
+		postgres://[::1
+		postgres://[::1]extra
+		postgres://[::1]:
+		postgres://[::1]]:5432
+		postgres://[fe80::1%25eth0]
+		postgres://[1:2:3:4:5:6:7:8::]
+		postgres://[1:2:3:4:5:6:7]
+		postgres://[:::1]
+		postgres://[1::2::3]
+		postgres://[::1:]
+		postgres://[1::2:]
+		postgres://[1:2:3:4:5:192.0.2.1]
+		postgres://[::ffff:999.0.0.1]
+		postgres://[127.0.0.1]
+		postgres://999.1.1.1
+		postgres://-option
+		postgres://db..
+		postgres://db name
+		postgres://%2Fsocket
+	CASES
+}
+
+@test "endpoint parser validates references, defaults and unset input under strict mode" {
+	local uri='postgres://db:5432' host=old port=old
+	run lib::networking::endpoint_from_uri uri host host
+	assert_failure 2
+	run lib::networking::endpoint_from_uri uri uri port
+	assert_failure 2
+	run lib::networking::endpoint_from_uri uri host port --default-port 0
+	assert_failure 2
+	uri='postgres://db'
+	run lib::networking::endpoint_from_uri uri host port
+	assert_failure 2
+	run bash -uc 'source "$1/lib/lib.sh"; if lib::networking::endpoint_from_uri missing host port; then exit 1; fi; echo survived' bash "$REPO_ROOT"
+	assert_success
+	assert_output --partial survived
+}
+
+install_fake_sleep() {
+	cat >"$TEST_TMP/bin/sleep" <<-FAKE
+		#!/usr/bin/env bash
+		printf '%s\n' "\$*" >>"$TEST_TMP/sleep-calls"
+		exit ${1:-0}
+	FAKE
+	chmod +x "$TEST_TMP/bin/sleep"
+}
+
+@test "tcp_wait counts attempts and sleeps exactly, returning on exhaustion" {
+	install_fake_nc 999
+	install_fake_sleep
+	if lib::networking::tcp_wait db 5432 --attempts 3 --timeout 2 --interval 4; then return 1; fi
+	[[ $(cat "$TEST_TMP/nc-calls") == 3 ]]
+	[[ $(wc -l <"$TEST_TMP/sleep-calls") -eq 2 ]]
+	[[ $(head -1 "$TEST_TMP/sleep-calls") == 4 ]]
+	[[ $(head -1 "$TEST_TMP/nc-args.log") == '-z -w2 db 5432' ]]
+}
+
+@test "tcp_wait stops at delayed success and skips sleep for zero interval" {
+	install_fake_nc 2
+	install_fake_sleep
+	lib::networking::tcp_wait ::1 05432 --attempts 5 --interval 0
+	[[ $(cat "$TEST_TMP/nc-calls") == 3 && ! -e $TEST_TMP/sleep-calls ]]
+}
+
+@test "tcp_wait uses the macOS TCP connection timeout" {
+	install_fake_nc 0
+	install_fake_sleep
+	uname() { printf 'Darwin\n'; }
+	lib::networking::tcp_wait db 5432 --timeout 3
+	[[ $(cat "$TEST_TMP/nc-args.log") == '-z -w3 -G 3 db 5432' ]]
+}
+
+@test "tcp_wait immediate success and single failure never sleep" {
+	install_fake_nc 0
+	install_fake_sleep
+	lib::networking::tcp_wait db 5432 --attempts 1
+	[[ ! -e $TEST_TMP/sleep-calls ]]
+	install_fake_nc 999
+	if lib::networking::tcp_wait db 5432 --attempts 1; then return 1; fi
+	[[ ! -e $TEST_TMP/sleep-calls ]]
+}
+
+@test "tcp_wait validates inputs and dependencies before connecting" {
+	install_fake_nc 0
+	install_fake_sleep
+	local flag value
+	for flag in --attempts --timeout --interval; do
+		for value in -1 '1+1' 99999999999999999999 ''; do
+			run lib::networking::tcp_wait db 5432 "$flag" "$value"
+			assert_failure 2
+		done
+	done
+	run lib::networking::tcp_wait -bad 5432
+	assert_failure 2
+	run lib::networking::tcp_wait db 65536
+	assert_failure 2
+	run lib::networking::tcp_wait db 5432 --attempts 0
+	assert_failure 2
+	run lib::networking::tcp_wait db 5432 --timeout 0
+	assert_failure 2
+	run lib::networking::tcp_wait db 5432 --interval 1 --interval 1
+	assert_failure 2
+	[[ ! -e $TEST_TMP/nc-calls ]]
+	mkdir "$TEST_TMP/empty-path"
+	PATH="$TEST_TMP/empty-path" run lib::networking::tcp_wait db 5432
+	assert_failure 1
+}
+
+@test "tcp_wait stops on sleep failure and allows strict-mode cleanup" {
+	install_fake_nc 999
+	install_fake_sleep 1
+	run bash -c '
+		set -euo pipefail
+		source "$1/lib/lib.sh"
+		before=$(set +o)
+		if lib::networking::tcp_wait db 5432 --attempts 4; then exit 1; fi
+		[[ $(set +o) == "$before" ]]
+		echo cleanup
+	' bash "$REPO_ROOT"
+	assert_success
+	assert_output --partial cleanup
+	[[ $(cat "$TEST_TMP/nc-calls") == 1 ]]
+}
+
+@test "tcp_wait returns before connecting if platform discovery fails" {
+	install_fake_nc 0
+	install_fake_sleep
+	uname() { return 1; }
+	if lib::networking::tcp_wait db 5432; then return 1; fi
+	[[ ! -e $TEST_TMP/nc-calls && ! -e $TEST_TMP/sleep-calls ]]
+}
+
+@test "new parser and wait keep URI credentials out of diagnostics and helper argv" {
+	install_fake_nc 0
+	install_fake_sleep
+	local uri='postgres://syntheticUser:syntheticPassword@db:5432/app' host='' port=''
+	lib::networking::endpoint_from_uri uri host port >"$TEST_TMP/out" 2>"$TEST_TMP/err"
+	lib::networking::tcp_wait "$host" "$port" >>"$TEST_TMP/out" 2>>"$TEST_TMP/err"
+	uri='postgres://syntheticUser:syntheticPassword@db:bad/app'
+	if lib::networking::endpoint_from_uri uri host port >>"$TEST_TMP/out" 2>>"$TEST_TMP/err"; then return 1; fi
+	run grep -E 'syntheticUser|syntheticPassword|postgres://' "$TEST_TMP/out" "$TEST_TMP/err" "$TEST_TMP/nc-args.log"
+	assert_failure 1
 }
 
 # lib::networking::tcp_probe

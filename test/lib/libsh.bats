@@ -7,31 +7,29 @@ setup() {
 	load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
 }
 
-# The library is meant to be sourced into scripts that have their own
-# functions, so every name it defines has to be reachable as
-# lib::<file>::<function> -- both to avoid collisions and to make the set
-# of provided functions enumerable.
-@test "every function in lib/ is namespaced lib::<file>::<function>" {
+# Keep public APIs enumerable by lib:: and private implementation helpers
+# under __libsh_. Both namespaces identify the containing module.
+@test "library functions follow the public or private naming convention" {
 	local violations=()
 
 	for file in "$REPO_ROOT"/lib/*.sh; do
 		local module
 		module=$(basename "$file" .sh)
 
-		local name
+		local name public_pattern private_pattern
+		public_pattern="^lib::${module}::[a-z][a-z0-9_]*$"
+		private_pattern="^__libsh_${module}_[a-z][a-z0-9_]*$"
 		while read -r name; do
 			[[ -z $name ]] && continue
-			[[ $name == "lib::${module}::"* ]] || violations+=("$(basename "$file"): $name")
+			[[ $name =~ $public_pattern || $name =~ $private_pattern ]] || violations+=("$(basename "$file"): $name")
 		done < <(grep -oE '^(function )?[A-Za-z0-9_:]+\(\)' "$file" | sed 's/^function //; s/()$//')
 	done
 
 	assert_equal "${violations[*]:-}" ""
 }
 
-# lib/lib.sh is the single entrypoint scripts will source once the library
-# becomes its own project, so it has to expose the whole surface: a module
-# that lands in lib/ without being reachable through it is a silent gap.
-@test "lib/lib.sh exposes every function the modules define" {
+# The entrypoint must load both public APIs and their private dependencies.
+@test "lib/lib.sh loads every public function and private helper" {
 	local missing=()
 
 	source "$REPO_ROOT/lib/lib.sh"

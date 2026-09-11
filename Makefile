@@ -67,7 +67,7 @@ GITLEAKS_CONFIG := $(CI_LINTER_DIR)/.gitleaks.toml
 # by type rather than by extension.
 BUNDLES := scripts lib bin tools
 BIN_SOURCES := $(shell find $(BIN_DIR) -maxdepth 1 -type f ! -name '*.md' 2>/dev/null)
-SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES)
+SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES) $(wildcard $(TEST_DIR)/container/*.sh) $(wildcard $(TEST_DIR)/integration/*.sh) $(wildcard $(TEST_DIR)/lib/*.bats)
 
 # Prefer a bats on PATH (CI installs one) and fall back to the submodule.
 BATS := $(shell command -v bats 2>/dev/null || echo $(TEST_DIR)/bats/core/bin/bats)
@@ -92,6 +92,7 @@ EXECUTABLES := $(shellcheck) $(shfmt) $(markdownlint) $(gitleaks) $(actionlint)
 # ---------------------------
 PRINT_HELP ?=
 WHAT ?=
+TEST_IMAGE ?= libsh-container-test
 
 # ---------------------------
 # Custom functions
@@ -180,6 +181,47 @@ else
 	$(call log_success, "Testing Bash sources for $(WHAT)")
 	@$(BATS) -r $(TEST_DIR)/$(WHAT)
 endif
+endif
+
+define BUILD_TEST_IMAGE_INFO
+# Build the installed-library test image with bookworm Bash and Bash 4.0.
+# Initializes the BATS submodules. Requires Docker and a running Docker daemon.
+#
+# Arguments:
+#   PRINT_HELP: 'y' or 'n'
+#   TEST_IMAGE: image tag (default 'libsh-container-test')
+endef
+.PHONY: build-test-image
+ifeq ($(PRINT_HELP), y)
+build-test-image:
+	echo "$$BUILD_TEST_IMAGE_INFO"
+else
+build-test-image: update-submodules
+	$(call log_success, "Building container test image $(TEST_IMAGE)")
+	@docker build -f "$(TEST_DIR)/container/Dockerfile" -t "$(TEST_IMAGE)" "$(ROOT_DIR)"
+endif
+
+define TEST_CONTAINER_INFO
+# Build the test image and run container tests with bookworm Bash and Bash 4.0.
+# Both runs use UID/GID 10001, a read-only root and writable /tmp.
+# Requires Docker and a running Docker daemon.
+#
+# Arguments:
+#   PRINT_HELP: 'y' or 'n'
+#   TEST_IMAGE: image tag (default 'libsh-container-test')
+endef
+.PHONY: test-container
+ifeq ($(PRINT_HELP), y)
+test-container:
+	echo "$$TEST_CONTAINER_INFO"
+else
+test-container: build-test-image
+	$(call log_success, "Testing container with bookworm Bash")
+	@docker run --rm --read-only --tmpfs /tmp:rw,exec,nosuid,nodev "$(TEST_IMAGE)"
+	$(call log_success, "Testing container with Bash 4.0")
+	@docker run --rm --read-only --tmpfs /tmp:rw,exec,nosuid,nodev \
+		-e PATH=/opt/bash-4.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+		"$(TEST_IMAGE)"
 endif
 
 # ---------------------------

@@ -1,0 +1,17 @@
+# Only the integration fixture's inputs belong in its build context.
+*
+!lib/
+!lib/**
+!bin/
+!bin/install
+!test/
+!test/container/
+!test/container/**
+!test/integration/
+!test/integration/**
+!test/lib/
+!test/lib/secret.bats
+!test/lib/networking.bats
+!test/bats/
+!test/bats/**
+**/.git
