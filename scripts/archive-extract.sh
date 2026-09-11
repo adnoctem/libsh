@@ -7,7 +7,13 @@ set -euo pipefail
 # Mitigate potential path issues depending on where you're running the script from
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-LIB_DIR="$(dirname "$SCRIPT_DIR")/lib"
+# An explicit installation takes precedence; a checkout bootstraps itself.
+LIB_DIR=${LIBSH_DIR:-"$(dirname "$SCRIPT_DIR")/lib"}
+if [[ ! -r $LIB_DIR/lib.sh ]]; then
+  printf 'Cannot read libsh at %s/lib.sh; set LIBSH_DIR or provide the local lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
 
 # shellcheck source=lib/log.sh
 . "$LIB_DIR"/log.sh

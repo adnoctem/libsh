@@ -13,17 +13,18 @@
 # functions, and LIBSH_LOADED lets a caller skip it entirely.
 
 # shellcheck disable=SC2034 # exported for callers that want to test it, not used here
-LIBSH_LIB_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+LIBSH_LIB_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)" || return 1
 
 #######################################
 # Source every module next to this file.
 # Globals:
 #   LIBSH_LIB_DIR (read)
 #   LIBSH_LOADED (written)
+#   LIBSH_LOADED_VERSION (written): release version, or development for a checkout
 # Arguments:
 #   None
 # Returns:
-#   0 on success, 1 if no modules were found.
+#   0 on success; nonzero for missing modules, module failures or unreadable metadata.
 #######################################
 function lib::lib::load() {
   local module found=0
@@ -33,7 +34,7 @@ function lib::lib::load() {
     [[ "$(basename "$module")" == "lib.sh" ]] && continue
 
     # shellcheck disable=SC1090 # the path is only known at runtime
-    . "$module"
+    . "$module" || return $?
     found=$((found + 1))
   done
 
@@ -42,6 +43,11 @@ function lib::lib::load() {
     return 1
   fi
 
+  # Release metadata is data, never shell code. Checkouts have no release stamp.
+  LIBSH_LOADED_VERSION=development
+  if [[ -f $LIBSH_LIB_DIR/.libsh-version ]]; then
+    IFS= read -r LIBSH_LOADED_VERSION <"$LIBSH_LIB_DIR/.libsh-version" || return 1
+  fi
   LIBSH_LOADED="$found"
   return 0
 }

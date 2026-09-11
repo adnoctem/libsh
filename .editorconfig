@@ -4,6 +4,11 @@ root = true
 indent_style = space
 indent_size = 2
 
+# Standalone shell entry points have no .sh extension.
+[bin/{install,libman,libtree}]
+indent_style = space
+indent_size = 2
+
 # Ignore paths
 [test/bats/**]
 ignore = true

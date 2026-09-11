@@ -67,7 +67,7 @@ GITLEAKS_CONFIG := $(CI_LINTER_DIR)/.gitleaks.toml
 # by type rather than by extension.
 BUNDLES := scripts lib bin tools
 BIN_SOURCES := $(shell find $(BIN_DIR) -maxdepth 1 -type f ! -name '*.md' 2>/dev/null)
-SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES) $(wildcard $(TEST_DIR)/container/*.sh) $(wildcard $(TEST_DIR)/integration/*.sh) $(wildcard $(TEST_DIR)/lib/*.bats)
+SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES) $(wildcard $(TEST_DIR)/container/*.sh) $(wildcard $(TEST_DIR)/integration/*.sh) $(wildcard $(TEST_DIR)/lib/*.bats) $(wildcard $(TEST_DIR)/bin/*.bats)
 
 # Prefer a bats on PATH (CI installs one) and fall back to the submodule.
 BATS := $(shell command -v bats 2>/dev/null || echo $(TEST_DIR)/bats/core/bin/bats)
@@ -162,11 +162,11 @@ endif
 
 
 define TEST_INFO
-# Run tests for the Bash library.
+# Run tests for the Bash library and standalone installation manager.
 #
 # Arguments:
 #   PRINT_HELP: 'y' or 'n'
-#   WHAT: a subdirectory of test/, e.g. 'lib'
+#   WHAT: a subdirectory of test/, e.g. 'lib' or 'bin'
 endef
 .PHONY: test
 ifeq ($(PRINT_HELP), y)
@@ -176,7 +176,7 @@ else
 test: update-submodules
 ifeq ($(WHAT),)
 	$(call log_success, "Testing all Bash sources!")
-	@$(BATS) -r $(TEST_DIR)/lib
+	@$(BATS) -r $(TEST_DIR)/lib $(TEST_DIR)/bin
 else
 	$(call log_success, "Testing Bash sources for $(WHAT)")
 	@$(BATS) -r $(TEST_DIR)/$(WHAT)

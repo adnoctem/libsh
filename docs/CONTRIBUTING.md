@@ -61,6 +61,24 @@ Settings default to:
 - **Excluded directories**: `test/bats` (vendored submodules) and `secrets` (local planning notes and retired scripts),
   both marked `ignore = true` in `.editorconfig` and honoured through `shfmt --apply-ignore`
 
+### Logical Paragraphs
+
+Group shell code into logical paragraphs, separated by one blank line. Keep related declarations together, then
+separate them from the work that follows. Within a function, add a paragraph boundary when the purpose changes:
+resolving configuration, validating inputs, downloading, verifying, installing, or reporting the result.
+
+Keep an operation and its immediate status check together, including assignments such as `rc=$?`. Keep a value's
+assignment, validation, and immediate use together when they form one step. Avoid blank lines after every statement
+or around every `if`; short helpers may need none. Keep comments attached to the block they describe.
+Expand control flow onto multiple lines so branches are easy to scan; short, single-action `case` alternatives can
+remain compact.
+
+Use the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) as the baseline for new shell
+code, with this repository's documented API naming, Bash 4.0 compatibility, and executable shebang conventions taking
+precedence. Existing code is not yet fully aligned; repository-wide conformance belongs in a separate change.
+`shfmt` handles mechanical formatting, including two-space indentation for `.sh` files and the standalone entry
+points in `bin/`. Logical paragraph boundaries remain an author's decision and should survive formatting.
+
 ### Linting
 
 Run every linter across the repository:
@@ -152,6 +170,9 @@ that:
 
 A new library module without a test file fails the suite, so coverage cannot quietly rot.
 
+Standalone installer and manager tests live in [`test/bin`](../test/bin), using local checksummed release fixtures.
+`make test` includes both directories; `make test WHAT=bin` runs only these installation tests.
+
 To test the installed library in a container, install Docker and start its daemon, then run:
 
 ```shell
@@ -160,7 +181,7 @@ make test-container
 
 This initializes the BATS submodules, builds the test image, and runs both bookworm Bash and Bash 4.0 as UID/GID 10001
 with a read-only root filesystem and writable `/tmp`. Each run includes the secret/networking tests and real local TCP
-checks. Building may download the base image, system packages, and Bash source.
+checks, plus the standalone manager lifecycle and bootstrap tests. Building may download the base image, system packages, and Bash source.
 
 Use `make build-test-image` to build without running tests. Both targets accept `TEST_IMAGE=<tag>` to override the
 default `libsh-container-test` tag and `PRINT_HELP=y` to print help without initializing submodules or invoking Docker.
@@ -316,6 +337,9 @@ review.
 - Start with `#!/usr/bin/env bash` followed by `set -euo pipefail`
 - Named `<domain>-<verb>[-<object>].sh`, where the domain is the resource being acted on and never the binary that
   implements it
+- Resolve a nonempty `LIBSH_DIR` before falling back to checkout-local `../lib`; fail if the selected library is missing.
+  Resolve that directory physically once before sourcing modules, so updates cannot mix releases.
+  See [the consumer example](../bin/README.md#consume-the-library-in-scripts). Do not invoke `libman` at runtime.
 - Parse arguments through `lib::opts::parse` rather than positionally, and expose `--help` and `--check-prerequisites`
 - Anything that changes state also offers `--dry-run`
 - Anything destructive is gated behind `lib::ui::confirm`, with `-y`/`--yes` to bypass it for unattended runs

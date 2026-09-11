@@ -6,6 +6,30 @@ This first pass covers the container configuration APIs and their compatibility
 counterparts. Excerpts reproduce source doc comments and declaration lines;
 function bodies are omitted. Private helpers are not consumer APIs.
 
+### [Library Loader](../lib/lib.sh)
+
+#### `lib::lib::load`
+
+```bash
+#######################################
+# Source every module next to this file.
+# Globals:
+#   LIBSH_LIB_DIR (read)
+#   LIBSH_LOADED (written)
+#   LIBSH_LOADED_VERSION (written): release version, or development for a checkout
+# Arguments:
+#   None
+# Returns:
+#   0 on success; nonzero for missing modules, module failures or unreadable metadata.
+#######################################
+function lib::lib::load() {
+```
+
+Sourcing `lib.sh` invokes the loader. `LIBSH_LIB_DIR` is the physically resolved module directory;
+`LIBSH_LOADED_VERSION` identifies that release even if a manager update later changes the installation's current release.
+`LIBSH_DIR` is the consumer's exported discovery path containing `lib.sh`, not an instruction to load any functions
+automatically. See [installation and script discovery](../bin/README.md) for shell setup and checkout fallback.
+
 ### [Networking](../lib/networking.sh)
 
 #### `lib::networking::endpoint_from_uri`
@@ -316,7 +340,7 @@ builds only. Both targets accept `TEST_IMAGE=<tag>` (default
 for BATS fake commands; the library needs no executable temporary files.
 
 The fixture uses a local checksummed test bundle, not a published release.
-`make test WHAT=lib` and `make test` currently run the same library suite;
+`make test WHAT=lib` runs the library suite; `make test` also runs the installer/manager tests;
 `make lint` checks the repository, and CI also runs real TCP checks on Linux/macOS.
 See [Contributing](CONTRIBUTING.md) for the test workflow. Application typing
 and real database/TLS integration remain separate consumer tests.

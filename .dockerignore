@@ -4,6 +4,11 @@
 !lib/**
 !bin/
 !bin/install
+!bin/libman
+!scripts/
+!scripts/**
+!test/bin/
+!test/bin/**
 !test/
 !test/container/
 !test/container/**

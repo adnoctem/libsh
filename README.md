@@ -19,8 +19,8 @@ information on how these scripts work. Scripts meant for direct execution by the
 automation are located in the [`scripts`](scripts) directory. The [`lib`](lib) directory contains library scripts meant
 to be reused across files or even different repositories with things like [Git Submodules][git_submodules] or _contrib_
 scripts like [git_subtree]. The [`bin`](bin) directory holds standalone, curl-able entry points: [`install`](bin/install)
-deploys `lib` onto a machine (e.g. a container image) and wires it up to be sourced, while [`libtree`](bin/libtree)
-vendors `lib` into another repository via `git subtree`. See [`bin/README.md`](bin/README.md) for details on both. You
+bootstraps [`libman`](bin/libman) to install and manage a shared library on a machine, while [`libtree`](bin/libtree)
+vendors `lib` into another repository via `git subtree`. See [`bin/README.md`](bin/README.md) for installation and updates. You
 may of course take a look at other repositories of ours for tips on how to achieve reuse.
 
 See the [API reference](docs/API.md) for lossless secret reads, explicit environment/file
@@ -29,8 +29,11 @@ resolution, database endpoint extraction, and returning TCP waits, including run
 ## ✨ TL;DR
 
 ```shell
-# install the 'lib' directory onto this machine and wire it up for sourcing
-curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | bash
+# install the library and opt in to LIBSH_DIR in ~/.bashrc (or use zsh)
+curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | bash -s -- --init-shell bash
+
+# add the printed PATH line manually, then update with
+libman update
 
 # refer to the script's '--help' output for more information
 ./scripts/archive-create.sh --sources /var/www/html --output-dir /opt/backup/destination
