@@ -6,6 +6,11 @@
 
 ## ✏️ Planned Changes
 
+- Complete [API.md](API.md) for the remaining public functions after reviewing module/function naming in `lib/`.
+  Reconcile the source doc comments, [NOMENCLATURE.md](NOMENCLATURE.md), and [CONTRIBUTING.md](CONTRIBUTING.md)
+  with the planned documentation specification in that separate pass.
+- Align `mysql-backup.sh` and `mysql-restore.sh` function prefixes with their filenames (`mysql_backup::` and
+  `mysql_restore::`), updating their call sites in the same change.
 - Finish BATS testing for all of `lib`
 - Add BATS testing for all `scripts`
 - Transition to a BATS `setup_suite` to use more demanding tools like Container runtimes to `scripts` unit testing

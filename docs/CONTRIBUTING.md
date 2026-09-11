@@ -17,17 +17,19 @@ make init
 
 The available targets:
 
-| Command       | Arguments | Purpose                                                                           |
-| ------------- | --------- | --------------------------------------------------------------------------------- |
-| `init`        |           | Check out the BATS submodules and verify the required tooling                     |
-| `format`      |           | Format all Bash sources in place with `shfmt`                                     |
-| `lint`        |           | Run every linter: `shellcheck`, `shfmt`, `markdownlint`, `actionlint`, `gitleaks` |
-| `test`        | `WHAT`    | Run the BATS test suite                                                           |
-| `build`       | `WHAT`    | Create distribution archives in `dist/`                                           |
-| `all`         |           | Clean `dist/`, then build every archive                                           |
-| `clean`       |           | Remove the `dist/` output directory                                               |
-| `version`     |           | Print the current version                                                         |
-| `tools-check` |           | Report which required tools are missing, and fail if any are                      |
+| Command            | Arguments    | Purpose                                                                             |
+| ------------------ | ------------ | ----------------------------------------------------------------------------------- |
+| `init`             |              | Check out the BATS submodules and verify the required tooling                       |
+| `format`           |              | Format all Bash sources in place with `shfmt`                                       |
+| `lint`             |              | Run every linter: `shellcheck`, `shfmt`, `markdownlint`, `actionlint`, `gitleaks`   |
+| `test`             | `WHAT`       | Run the BATS test suite                                                             |
+| `build`            | `WHAT`       | Create distribution archives in `dist/`                                             |
+| `build-test-image` | `TEST_IMAGE` | Build the installed-library Docker test image, initializing BATS submodules         |
+| `test-container`   | `TEST_IMAGE` | Build the test image and run non-root container tests on bookworm Bash and Bash 4.0 |
+| `all`              |              | Clean `dist/`, then build every archive                                             |
+| `clean`            |              | Remove the `dist/` output directory                                                 |
+| `version`          |              | Print the current version                                                           |
+| `tools-check`      |              | Report which required tools are missing, and fail if any are                        |
 
 Every target also accepts `PRINT_HELP=y` to describe itself instead of running:
 
@@ -70,13 +72,13 @@ make lint
 This requires the following tools on your `PATH`. Run `make tools-check` to see which are missing; `make lint` refuses
 to start until they are all present, rather than failing halfway through:
 
-| Tool           | Scope                                                     |
-| -------------- | --------------------------------------------------------- |
-| `shellcheck`   | `lib/*.sh`, `scripts/*.sh`, and the executables in `bin/` |
-| `shfmt`        | Formatting drift across the repository                    |
-| `markdownlint` | All Markdown outside `test/` and `secrets/`               |
-| `actionlint`   | GitHub Actions workflows                                  |
-| `gitleaks`     | Secret scanning                                           |
+| Tool           | Scope                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| `shellcheck`   | Library, scripts, tools, `bin/` executables, BATS tests, and container/integration helpers |
+| `shfmt`        | Formatting drift across the repository                                                     |
+| `markdownlint` | All Markdown outside `test/` and `secrets/`                                                |
+| `actionlint`   | GitHub Actions workflows                                                                   |
+| `gitleaks`     | Secret scanning                                                                            |
 
 Individual linters can be run on their own, which is useful while iterating:
 
@@ -142,12 +144,27 @@ Tests live in [`test/lib`](../test/lib) and mirror the library: `lib/<module>.sh
 `test/lib/<module>.bats`. Repository-wide rules live in [`test/lib/libsh.bats`](../test/lib/libsh.bats), which enforces
 that:
 
-- every function in `lib/` is namespaced `lib::<filename>::<function>`
+- public functions in `lib/` use `lib::<module>::<function>` and private helpers use `__libsh_<module>_<function>`,
+  where `<module>` is the containing filename without `.sh`
 - every file in `lib/` declares `# shellcheck shell=bash` on its first line
 - every module in `lib/` has a matching `.bats` file
 - [`lib/lib.sh`](../lib/lib.sh), the single-entrypoint loader, exposes every function the modules define
 
 A new library module without a test file fails the suite, so coverage cannot quietly rot.
+
+To test the installed library in a container, install Docker and start its daemon, then run:
+
+```shell
+make test-container
+```
+
+This initializes the BATS submodules, builds the test image, and runs both bookworm Bash and Bash 4.0 as UID/GID 10001
+with a read-only root filesystem and writable `/tmp`. Each run includes the secret/networking tests and real local TCP
+checks. Building may download the base image, system packages, and Bash source.
+
+Use `make build-test-image` to build without running tests. Both targets accept `TEST_IMAGE=<tag>` to override the
+default `libsh-container-test` tag and `PRINT_HELP=y` to print help without initializing submodules or invoking Docker.
+CI uses `make build-test-image test-container`; Make shares the build prerequisite so the image is built once.
 
 ## ℹ️ Commit Message Format
 
@@ -315,8 +332,14 @@ review.
 **Library modules under `lib/`**
 
 - Begin with `# shellcheck shell=bash` on the first line
-- Define functions as `lib::<filename>::<function>` — no exceptions, so the full set of provided functions stays
-  enumerable
+- Reserve `lib::<module>::<function>` for the public API, where `<module>` is the containing filename without `.sh`.
+  Public functions can call as many private helpers as needed.
+- Name private helpers `__libsh_<module>_<function>`, for example `__libsh_networking_endpoint_host`.
+  Do not put private helpers in the public namespace as `lib::<module>::__<function>`.
+  Function names after either prefix use lowercase letters, digits, and underscores, starting with a letter.
+- Private helpers are implementation details, not supported consumer APIs. Bash still loads them into the caller's
+  shell; the naming convention distinguishes their role and keeps the public API enumerable by its `lib::` prefix.
+  Reserve `__libsh_` for library internals, including private helper names and internal variables.
 - Ship a matching `test/lib/<module>.bats`
 - Write errors with `lib::log::red`, which goes to stderr; progress output goes to stdout
 

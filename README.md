@@ -1,5 +1,5 @@
 <p align="center">
-    <!-- PowerShell -->
+    <!-- libsh -->
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://github.com/adnoctem/artwork/blob/425046029eaed451f5ced22ddc650059dff11878/projects/libsh/icon/color/bash-icon-color.png?raw=true">
       <img src="https://github.com/adnoctem/artwork/blob/425046029eaed451f5ced22ddc650059dff11878/projects/libsh/icon/color/bash-icon-color.png?raw=true" alt="Bash Logo" width="225">
@@ -14,7 +14,7 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/adnoctem/libsh?label=Activity)](https://github.com/adnoctem/libsh/commits/main/)
 
 A library of open-source [MIT][license]-licensed [Bash][bash] scripts written and maintained by `Ad Noctem Collective` for use
-with [Bash][bash] version 5 and above. Refer to the GNU Projects's in-depth [Bash Documentation][bash_docs] for more
+with [Bash][bash] version 4.0 and above. Refer to the GNU Projects's in-depth [Bash Documentation][bash_docs] for more
 information on how these scripts work. Scripts meant for direct execution by the user, an init system or other means of
 automation are located in the [`scripts`](scripts) directory. The [`lib`](lib) directory contains library scripts meant
 to be reused across files or even different repositories with things like [Git Submodules][git_submodules] or _contrib_
@@ -22,6 +22,9 @@ scripts like [git_subtree]. The [`bin`](bin) directory holds standalone, curl-ab
 deploys `lib` onto a machine (e.g. a container image) and wires it up to be sourced, while [`libtree`](bin/libtree)
 vendors `lib` into another repository via `git subtree`. See [`bin/README.md`](bin/README.md) for details on both. You
 may of course take a look at other repositories of ours for tips on how to achieve reuse.
+
+See the [API reference](docs/API.md) for lossless secret reads, explicit environment/file
+resolution, database endpoint extraction, and returning TCP waits, including runtime dependencies and migration examples.
 
 ## ✨ TL;DR
 

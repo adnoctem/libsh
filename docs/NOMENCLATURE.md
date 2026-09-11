@@ -1,137 +1,94 @@
-# Nomenclature: `<domain>-<verb>[-<object>].sh`
+# `libsh` Nomenclature
 
-Status: adopted. Supersedes the earlier `<verb>-<noun>.sh` scheme.
+Use these conventions when adding or renaming files and functions. This document
+covers `lib/` and `scripts/`; executable entry points in `bin/` are outside its scope.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for implementation and testing requirements.
 
-## Verdict
+## [lib](../lib)
 
-Switch to noun-first. It is the better fit for this library, for one
-reason that outweighs everything else: **these are files in a directory,
-not commands in a shell.** `ls scripts/` sorts alphabetically, so the
-leading token decides what clusters together. Verb-first scatters every
-MySQL script across the listing; noun-first puts them in one block:
+> File Nomenclature: `<module>.sh`
+>
+> Public Function Nomenclature: `lib::<module>::<function>`
+>
+> Private Function Nomenclature: `__libsh_<module>_<function>`
 
-```text
-verb-first                     noun-first
------------------------------  -----------------------------
-backup-mysql.sh                arch-update-mirrors.sh
-compare-zones-dns.sh           arch-update-packages.sh
-migrate-mysql-charset.sh       archive-create.sh
-new-archive.sh                 dns-compare-zones.sh
-restore-mysql.sh               mysql-backup.sh
-update-arch-mirrors.sh         mysql-migrate-charset.sh
-update-arch-packages.sh        mysql-restore.sh
-```
+TODO: Complete the module and function naming specification after the separate
+`lib/` naming review. The public/private distinction already applies; see the
+[library conventions](CONTRIBUTING.md#technical-requirements).
 
-The right-hand column answers "what can I do to MySQL?" by reading four
-adjacent lines. The left-hand column requires reading all of them. Tab
-completion follows the same logic: `mysql-<TAB>` is the question people
-actually ask; `backup-<TAB>` is not.
+## [scripts](../scripts)
 
-This is also where the CLIs that grew large ended up -- `aws s3 cp`,
-`az group create`, `docker container run`, `gh pr merge` are all
-noun-first. PowerShell's `Verb-Noun` went the other way because it
-optimizes for `Get-Command -Verb Get` discovery across thousands of
-cmdlets from unrelated modules; a repo with a `scripts/` directory has
-no such problem, and pays the grouping cost for nothing.
+> File Nomenclature: `<domain>-<verb>[-<object>].sh`
+>
+> Function Nomenclature: `<domain>_<verb>[_<object>]::<function>`
 
-**The one real cost:** verb discoverability. "Which scripts back things
-up?" is no longer a prefix match. The approved-verb table below is what
-keeps that from turning into a free-for-all, and `ls scripts/ | grep
--- -backup` still answers it.
+### File names
 
-## Grammar
+Use lowercase words separated by hyphens and the `.sh` extension. Names identify
+one operation on a system or resource:
 
-```text
-<domain>-<verb>[-<object>].sh
-```
+- **Domain:** the system or resource being acted on, such as `mysql`, `dns`,
+  `archive`, or `ubuntu`. Use the resource name rather than the implementing
+  binary: `archive`, not `tar`; `dns`, not `dig`.
+- **Verb:** one operation from the approved table below. Give independent
+  operations separate scripts, such as `arch-update-packages.sh` and
+  `arch-update-mirrors.sh`.
+- **Object:** include it when the domain and verb alone leave the operation
+  ambiguous. For example, `mysql-migrate-charset.sh` identifies what is being
+  migrated, while `mysql-backup.sh` needs no additional object.
 
-- **`<domain>`** -- the system or resource being acted on, **never the
-  binary that implements it**. This is the same rule that renamed
-  `mysqldump` -> `mysql`, applied to the leading token:
-  `dig` is a binary, DNS is the domain; `tar` is a binary, an archive is
-  the domain. The binary can be swapped out next year; the domain cannot.
-- **`<verb>`** -- exactly one, from the table below. Two verbs means two
-  scripts. `arch-packages.sh`'s `update`/`mirrors` subcommands become
-  `arch-update-packages.sh` and `arch-update-mirrors.sh`, which is the
-  same move that turned `deps` into `--check-prerequisites`.
-- **`<object>`** -- optional, and only when the verb alone is ambiguous
-  within the domain. `mysql-backup.sh` needs no object because backing up
-  a MySQL server means one thing. `mysql-migrate-charset.sh` does, because
-  migrating a schema and migrating a charset are different operations.
+Use a singular domain and a plural object when it naturally denotes a collection,
+for example `dns-compare-zones.sh`. Keeping the domain first groups related
+operations in directory listings and shell completion.
 
-Singular domain, plural object where the object is naturally plural:
-`arch-update-packages.sh`, `dns-compare-zones.sh`.
+### Approved verbs
 
-## Approved verbs
+Use an existing verb when it fits. Propose additions to this table in the same
+change as the script that needs them.
 
-Extend this table in a PR; do not invent verbs per script.
+| Verb      | Use for                                                          |
+| --------- | ---------------------------------------------------------------- |
+| `backup`  | Create a point-in-time copy of a resource                        |
+| `restore` | Load a backup into a live system                                 |
+| `sync`    | Reconcile two locations or systems                               |
+| `deploy`  | Ship a build or artifact to a target                             |
+| `install` | Set up a dependency or tool on this machine                      |
+| `update`  | Change an existing resource in place                             |
+| `remove`  | Delete or decommission a resource                                |
+| `test`    | Validate without changing the resource                           |
+| `new`     | Create a new instance from scratch                               |
+| `convert` | Produce data in another format while retaining the original      |
+| `invoke`  | Run an arbitrary named task or pipeline                          |
+| `migrate` | Change an existing system's structure or representation in place |
+| `compare` | Report differences without changing either input                 |
+| `list`    | Enumerate existing resources without changing them               |
+| `create`  | Produce an artifact from existing inputs                         |
+| `extract` | Unpack an archive into files or directories                      |
 
-| Verb      | Use for                                              |
-| --------- | ---------------------------------------------------- |
-| `backup`  | Create a point-in-time copy of something             |
-| `restore` | Load a backup back into a live system                |
-| `sync`    | Reconcile two locations/systems                      |
-| `deploy`  | Ship a build/artifact to a target                    |
-| `install` | Set up a dependency or tool on this machine          |
-| `update`  | Change an existing thing in place                    |
-| `remove`  | Delete/decommission something                        |
-| `test`    | Validate/check without changing anything             |
-| `new`     | Create a new instance of something from scratch      |
-| `convert` | Transform data from one format to another            |
-| `invoke`  | Run an arbitrary named task/pipeline                 |
-| `migrate` | Move an existing system to a new shape in place      |
-| `compare` | Diff two things and report, changing neither         |
-| `list`    | Enumerate what exists and print it, changing nothing |
-| `create`  | Produce a new artifact from existing inputs          |
+Use `new` for a new instance, such as `mysql-new-database.sh`, and `create` for
+an artifact built from existing inputs, such as `archive-create.sh`. Use
+`convert` when retaining the original and `migrate` when changing it in place.
+Destructive behavior follows the confirmation requirements in
+[CONTRIBUTING.md](CONTRIBUTING.md), regardless of the chosen verb.
 
-`create` vs `new`: `new` scaffolds from nothing (`mysql-new-database.sh`),
-`create` builds an artifact out of inputs you already have
-(`archive-create.sh` tars files that exist).
+### Function names
 
-`migrate` vs `convert`: `convert` writes a new thing and leaves the
-original alone; `migrate` changes the thing in place, and is therefore
-the one that needs a confirmation gate.
+Derive the function namespace from the complete filename: remove `.sh`, replace
+every hyphen with an underscore, and append `::`. Function names following the
+prefix use lowercase words separated by underscores.
 
-## Function prefixes
-
-Derived mechanically from the filename: hyphens become underscores.
-Library functions are `lib::<filename>::<function>` without exception --
-`test/lib/naming.bats` enforces it, so the full set of provided functions
-can be enumerated by grepping for the prefix. Library _filenames_ are
-short but never abbreviated: `permissions.sh`, not `perm.sh`.
-
-| File                       | Prefix                    |
+| File                       | Function namespace        |
 | -------------------------- | ------------------------- |
 | `mysql-backup.sh`          | `mysql_backup::`          |
 | `mysql-migrate-charset.sh` | `mysql_migrate_charset::` |
 | `dns-compare-zones.sh`     | `dns_compare_zones::`     |
+| `archive-extract.sh`       | `archive_extract::`       |
 
-Every script keeps the same three-function shape: `::prerequisites`,
-`::exec`, and `main`.
+Use `main` as the script's unprefixed entry point. Name dependency checks
+`<prefix>::prerequisites` and the operation implementation `<prefix>::exec`
+where those functions are needed. Additional helpers such as `::plan` or
+`::from_manifest` use the same namespace; there is no fixed function count.
 
-## Rename table
-
-| Current                    | New                         | Status                                    |
-| -------------------------- | --------------------------- | ----------------------------------------- |
-| `backup-mysql.sh`          | `mysql-backup.sh`           | done                                      |
-| `restore-mysql.sh`         | `mysql-restore.sh`          | done                                      |
-| `mysql-migrate-charset.sh` | _(unchanged)_               | already conformed                         |
-| `tar-archive.sh`           | `archive-create.sh`         | done; retired to `secrets/scripts/`       |
-| _(new)_                    | `archive-extract.sh`        | done; the counterpart tar-archive lacked  |
-| _(new)_                    | `ubuntu-update-packages.sh` | done                                      |
-| _(new)_                    | `ubuntu-update-mirrors.sh`  | done                                      |
-| `dig-compare-zones.sh`     | `dns-compare-zones.sh`      | done; retired to `secrets/scripts/`       |
-| `arch-packages.sh`         | `arch-update-packages.sh`   | done; split from the `update` subcommand  |
-| `arch-packages.sh`         | `arch-update-mirrors.sh`    | done; split from the `mirrors` subcommand |
-
-Each rename lands in the same PR as the update to its external call
-sites (cron, CI, docs), so the two names never coexist. A replaced script
-moves to `secrets/scripts/` rather than being deleted outright.
-
-## Open questions
-
-- `archive-create.sh` vs `archive-new.sh` -- the `create`/`new` split
-  above is a judgement call, not an established convention.
-- Whether `bin/libtree` and `bin/install` follow this scheme at all, or
-  stay as bare entry-point names (they are commands, not resource
-  operations, so probably the latter).
+When renaming a script, update its function namespace, call sites, and related
+documentation or automation in the same change. Known legacy prefix mismatches
+are tracked in [TODO.md](TODO.md); they do not define exceptions for new scripts.
