@@ -1,3 +1,9 @@
+## [0.5.0](https://github.com/adnoctem/libsh/compare/v0.4.0...v0.5.0) (2026-09-11)
+
+### Features
+
+* **bin:** add libman and shared library discovery ([ede0d6b](https://github.com/adnoctem/libsh/commit/ede0d6b930cd12ced65a58a0dd64fbb03c2df8a3))
+
 ## [0.4.0](https://github.com/adnoctem/libsh/compare/v0.3.0...v0.4.0) (2026-09-11)
 
 ### Features
