@@ -76,11 +76,33 @@ jobs:
         run: |
           make test
 
+      - name: Install TCP integration dependency
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y netcat-openbsd
+
+      - name: Test real local TCP connections
+        run: bash test/integration/tcp.sh "$PWD/lib/lib.sh"
+
+  container:
+    name: Container and Bash 4.0
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Build and test installed-library fixture on both Bash versions
+        run: make build-test-image test-container
+
   dispatch:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    needs: [test]
+    needs: [test, container]
     permissions:
       contents: write
       pull-requests: write

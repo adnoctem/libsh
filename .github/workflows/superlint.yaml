@@ -28,4 +28,9 @@ jobs:
         env:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # CHANGELOG.md is a generated file from `semantic-relase`
+          # Dockerfile is only used for testing in container isolation, and is not part of the library itself or ever shipped
+          FILTER_REGEX_EXCLUDE: (.*Dockerfile$|.*\.lock$|.*CHANGELOG\.md$)
           VALIDATE_BASH: true
+          # mostly false positives
+          VALIDATE_SPELL_CODESPELL: false
