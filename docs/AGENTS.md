@@ -82,5 +82,5 @@ Run `make init` first (checks out BATS submodules).
 - Generated `CHANGELOG.md` is excluded from lint/format checks; do not hand-edit it.
 - `API.md` covers every public core/extension function; `test/lib/libsh.bats` checks
   that each public function has exactly one reference entry. Keep behavior and docs aligned.
-- Comprehensive operational-script E2E coverage remains planned in TODO.md;
+- Comprehensive operational-script end-to-end coverage remains planned in TODO.md;
   core BATS coverage does not replace integration tests for those scripts.

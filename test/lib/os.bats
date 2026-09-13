@@ -781,7 +781,7 @@ teardown() {
   run lib::os::recursive_configure "$TEST_TMP/tree" -f 600
   assert_success
   local mode
-  mode=$(__libsh_fs_stat "$TEST_TMP/tree/sub/file" attributes)
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/tree/sub/file" attributes)
   [[ ${mode%% *} == *600 ]]
 }
 

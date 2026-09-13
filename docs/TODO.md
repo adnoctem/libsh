@@ -7,7 +7,7 @@
 
 ## ✏️ Planned Changes
 
-- [ ] Build a container-based E2E harness for operational scripts, using BATS `setup_suite` for shared setup
+- [ ] Build a container-based end-to-end harness for operational scripts, using BATS `setup_suite` for shared setup
 
 ## 💡 Ideas
 

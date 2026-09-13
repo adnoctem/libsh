@@ -115,7 +115,7 @@ documented, but the library does not provide a transaction across several files 
 Core and addon tests run under BATS, with API coverage checking that every public function has exactly one reference
 entry. Installer tests use offline release fixtures. Integration tests exercise local TCP/HTTP behavior and installed
 bundles under Bash 5.2 and 4.0, including nonroot read-only containers and disposable root account tests.
-Comprehensive operational-script E2E coverage is still tracked in [TODO][todo].
+Comprehensive operational-script end-to-end coverage is still tracked in [TODO][todo].
 
 `make lint` is the local lint entrypoint. CI runs tests on Linux and macOS, container tests and pre-commit checks;
 Super-Linter runs as an additional workflow. Source and tests settle before API documentation is finalized.

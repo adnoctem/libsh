@@ -4,9 +4,9 @@ References, tools and projects that informed `libsh`. Installer links record des
 Bitnami inspired the core/extension approach without code copying. Upstream code and dependencies
 retain their own licenses; a reference here does not imply that its code is bundled with `libsh`.
 
-## 🌐 Websites
+## 🌐 Sites
 
-- [GNU Bash - language and builtin reference][bash_docs]
+- [GNU Bash - language and built-in reference][bash_docs]
 - [Google's Shell Style Guide - source readability and function comments][shell_style]
 - [XDG Base Directory Specification - user directory conventions][xdg_spec]
 - [Semantic Versioning - version parsing and comparison][semver_spec]
@@ -33,7 +33,7 @@ retain their own licenses; a reference here does not imply that its code is bund
 
 ## 🧩 Snippets
 
-- [Convert a MySQL database character set and collation - StackOverflow][so_mysql_charset]
+- [Convert a MySQL database character set and collation - Stack Overflow][so_mysql_charset]
 
 ## 💡 Under Review
 
