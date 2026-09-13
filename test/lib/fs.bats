@@ -468,3 +468,28 @@ setup() {
   assert_output ''
   assert_equal "$(cat "$TEST_TMP/file")" new
 }
+
+@test "owner_set forwards owner forms and no-dereference without recursion" {
+  # shellcheck disable=SC2329 # ownership fixture
+  chown() { printf '<%s>' "$@" >"$TEST_TMP/chown"; }
+  run lib::fs::owner_set "$TEST_TMP/link/" 123:456 -n
+  assert_success
+  assert_output ''
+  assert_equal "$(cat "$TEST_TMP/chown")" "<-h><--><123:456><$TEST_TMP/link>"
+  lib::fs::owner_set "$TEST_TMP/file" :staff
+  assert_equal "$(cat "$TEST_TMP/chown")" "<--><:staff><$TEST_TMP/file>"
+  run lib::fs::owner_set "$TEST_TMP/file" --reference=other
+  assert_failure 2
+  run lib::fs::owner_set "$TEST_TMP/file" user:group:extra
+  assert_failure 2
+}
+
+@test "owner_set propagates backend failure and accepts leading-hyphen paths safely" {
+  # shellcheck disable=SC2329 # ownership fixture
+  chown() {
+    [[ $* == '-- 123 ./-file' ]] || return 9
+    return 1
+  }
+  run lib::fs::owner_set -file 123
+  assert_failure 1
+}

@@ -29,7 +29,7 @@ Run `make init` first (checks out BATS submodules).
 - `make test` — all BATS tests; `make test WHAT=lib`, `WHAT=extensions`, or `WHAT=bin` for one directory
 - Single test file: `test/bats/core/bin/bats test/lib/opt.bats` (a `bats` on `PATH` is preferred; `make test` falls back to the submodule)
 - `make build [WHAT=lib]` — write archives to `dist/`; `make all` cleans and rebuilds
-- `make test-container` — Docker: installed bundle on bookworm Bash and Bash 4.0, UID 10001, read-only root; `make build-test-image` builds only
+- `make test-container` — Docker: installed bundle on bookworm Bash and Bash 4.0, UID 10001, read-only root; separate disposable root containers test account/ownership changes. `make build-test-image` builds only
 
 `PRINT_HELP=y make <target>` describes a target instead of running it.
 

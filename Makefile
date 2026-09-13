@@ -209,7 +209,8 @@ endif
 
 define TEST_CONTAINER_INFO
 # Build the test image and run container tests with bookworm Bash and Bash 4.0.
-# Both runs use UID/GID 10001, a read-only root and writable /tmp.
+# Library runs use UID/GID 10001, a read-only root and writable /tmp.
+# Account integration uses separate disposable writable root containers.
 # Requires Docker and a running Docker daemon.
 #
 # Arguments:
@@ -228,6 +229,11 @@ test-container: build-test-image
 	@docker run --rm --read-only --tmpfs /tmp:rw,exec,nosuid,nodev \
 		-e PATH=/opt/bash-4.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 		"$(TEST_IMAGE)"
+	$(call log_success, "Testing accounts in disposable root containers")
+	@docker run --rm --user 0:0 --entrypoint bash "$(TEST_IMAGE)" /opt/libsh-test/accounts.sh
+	@docker run --rm --user 0:0 --entrypoint bash \
+		-e PATH=/opt/bash-4.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+		"$(TEST_IMAGE)" /opt/libsh-test/accounts.sh
 endif
 
 # ---------------------------

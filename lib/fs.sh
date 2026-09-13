@@ -946,3 +946,56 @@ function lib::fs::file_append_content_after_last_match() {
 
   __libsh_fs_edit append "$@"
 }
+
+#######################################
+# Validate an owner expression accepted by the filesystem wrappers.
+# Globals:
+#   None
+# Arguments:
+#   1 - USER, USER:GROUP or :GROUP; names or decimal IDs
+# Outputs:
+#   None
+# Returns:
+#   0 valid, 2 invalid/empty expression.
+#######################################
+function __libsh_fs_owner() {
+  local LC_ALL=C owner=$1 part
+  local -a parts=()
+  [[ -n $owner && $owner != : && $owner != *:*:* && $owner != *: ]] || return 2
+  IFS=: read -r -a parts <<<"$owner"
+  for part in "${parts[@]}"; do
+    [[ -z $part ]] && continue
+    [[ $part =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*\$?$ ]] || return 2
+  done
+}
+
+#######################################
+# Set ownership of one path, following a final symlink by default.
+# No recursion or automatic privilege elevation is performed.
+# Globals:
+#   PATH (read)
+# Arguments:
+#   1 - Path
+#   2 - USER, USER:GROUP or :GROUP; names or numeric IDs
+#   3 - Optional -n or --no-dereference to change the link itself
+# Outputs:
+#   Errors to stderr; no stdout.
+# Returns:
+#   0 success, 1 chown/path failure, 2 invalid invocation.
+# Dependencies:
+#   chown; caller must have the required ownership-changing privileges.
+#######################################
+function lib::fs::owner_set() {
+  [[ $# == 2 || ($# == 3 && ($3 == -n || $3 == --no-dereference)) ]] || return 2
+  [[ -n $1 ]] || return 2
+  __libsh_fs_owner "$2" || return 2
+  local path=$1
+  local -a options=()
+  while [[ $path != / && $path == */ ]]; do
+    path=${path%/}
+  done
+  [[ $path == /* ]] || path=./$path
+  [[ $# != 3 ]] || options=(-h)
+
+  chown ${options[@]+"${options[@]}"} -- "$2" "$path" || return 1
+}

@@ -17,19 +17,19 @@ make init
 
 The available targets:
 
-| Command            | Arguments    | Purpose                                                                             |
-| ------------------ | ------------ | ----------------------------------------------------------------------------------- |
-| `init`             |              | Check out the BATS submodules and verify the required tooling                       |
-| `format`           |              | Format all Bash sources in place with `shfmt`                                       |
-| `lint`             |              | Run every linter: `shellcheck`, `shfmt`, `markdownlint`, `actionlint`, `gitleaks`   |
-| `test`             | `WHAT`       | Run the BATS test suite                                                             |
-| `build`            | `WHAT`       | Create distribution archives in `dist/`                                             |
-| `build-test-image` | `TEST_IMAGE` | Build the installed-library Docker test image, initializing BATS submodules         |
-| `test-container`   | `TEST_IMAGE` | Build the test image and run non-root container tests on bookworm Bash and Bash 4.0 |
-| `all`              |              | Clean `dist/`, then build every archive                                             |
-| `clean`            |              | Remove the `dist/` output directory                                                 |
-| `version`          |              | Print the current version                                                           |
-| `tools-check`      |              | Report which required tools are missing, and fail if any are                        |
+| Command            | Arguments    | Purpose                                                                              |
+| ------------------ | ------------ | ------------------------------------------------------------------------------------ |
+| `init`             |              | Check out the BATS submodules and verify the required tooling                        |
+| `format`           |              | Format all Bash sources in place with `shfmt`                                        |
+| `lint`             |              | Run every linter: `shellcheck`, `shfmt`, `markdownlint`, `actionlint`, `gitleaks`    |
+| `test`             | `WHAT`       | Run the BATS test suite                                                              |
+| `build`            | `WHAT`       | Create distribution archives in `dist/`                                              |
+| `build-test-image` | `TEST_IMAGE` | Build the installed-library Docker test image, initializing BATS submodules          |
+| `test-container`   | `TEST_IMAGE` | Run non-root library and disposable root account tests on bookworm Bash and Bash 4.0 |
+| `all`              |              | Clean `dist/`, then build every archive                                              |
+| `clean`            |              | Remove the `dist/` output directory                                                  |
+| `version`          |              | Print the current version                                                            |
+| `tools-check`      |              | Report which required tools are missing, and fail if any are                         |
 
 Every target also accepts `PRINT_HELP=y` to describe itself instead of running:
 

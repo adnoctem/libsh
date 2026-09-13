@@ -15,7 +15,7 @@ COPY test/container/install.sh test/container/install.sh
 RUN bash test/container/install.sh
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd curl ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd curl ca-certificates fdisk \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /opt/bash-4.0 /opt/bash-4.0
 COPY --from=build /usr/local/lib/libsh.libman /usr/local/lib/libsh.libman
@@ -29,6 +29,7 @@ COPY test/lib/net.bats test/lib/core.bats test/lib/data.bats test/lib/opt.bats t
     test/lib/fs.bats test/lib/hash.bats test/lib/cmp.bats test/lib/log.bats /opt/libsh-test/test/lib/
 COPY test/integration /opt/libsh-test/test/integration
 COPY test/container/run.sh /opt/libsh-test/run.sh
+COPY test/container/accounts.sh /opt/libsh-test/accounts.sh
 RUN ln -s /usr/local/lib/libsh.libman/current/lib /usr/local/lib/libsh \
     && ln -s /usr/local/lib/libsh /opt/libsh-test/lib \
     && mkdir -p /run/secrets/..version \

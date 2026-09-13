@@ -395,3 +395,378 @@ teardown() {
   run lib::os::rc
   assert_failure 17
 }
+
+@test "boot time reads btime and rejects missing duplicate or overflowing values" {
+  # shellcheck disable=SC2329 # inspection fixture
+  cat() { printf '%s\n' "$BOOT_FIXTURE"; }
+  BOOT_FIXTURE=$'cpu 1 2 3\nbtime 1700000000\nprocesses 5'
+  run lib::os::boot_time
+  assert_success
+  assert_output 1700000000
+  local fixture
+  for fixture in 'cpu 1 2' 'btime -1' 'btime 9223372036854775808' $'btime 1\nbtime 2'; do
+    BOOT_FIXTURE=$fixture
+    run lib::os::boot_time
+    assert_failure 1
+    assert_output ''
+  done
+}
+
+@test "machine ID validates existing values and falls back only on read failure" {
+  # shellcheck disable=SC2329 # inspection fixture
+  cat() {
+    [[ $1 != /etc/machine-id ]] || return 1
+    printf '%s\n' "$ID_FIXTURE"
+  }
+  ID_FIXTURE=0123456789abcdef0123456789abcdef
+  run lib::os::machine_id
+  assert_success
+  assert_output "$ID_FIXTURE"
+  ID_FIXTURE=00000000000000000000000000000000
+  run lib::os::machine_id
+  assert_failure 1
+  ID_FIXTURE=uninitialized
+  run lib::os::machine_id
+  assert_failure 1
+}
+
+@test "memory counters return exact bytes and do not estimate missing available memory" {
+  # shellcheck disable=SC2329 # inspection fixture
+  cat() { printf '%s\n' "$MEMORY_FIXTURE"; }
+  MEMORY_FIXTURE=$'MemTotal: 12345 kB\nMemFree: 10 kB\nSwapFree: 0 kB'
+  run lib::os::memory
+  assert_success
+  assert_output 12641280
+  run lib::os::memory free
+  assert_output 10240
+  run lib::os::memory swap-free
+  assert_output 0
+  run lib::os::memory available
+  assert_failure 1
+  assert_output ''
+  MEMORY_FIXTURE='MemTotal: 9223372036854775807 kB'
+  run lib::os::memory
+  assert_failure 1
+  MEMORY_FIXTURE='MemTotal: 2 MB'
+  run lib::os::memory
+  assert_failure 1
+  run lib::os::memory unknown
+  assert_failure 2
+}
+
+@test "root disk lookup returns mounted logical devices and rejects virtual roots" {
+  # shellcheck disable=SC2329 # findmnt fixture
+  findmnt() {
+    [[ $* == '-n -r -o SOURCE --target /' ]] || return 1
+    printf '%s\n' "$DISK_FIXTURE"
+  }
+  DISK_FIXTURE='/dev/mapper/root[/@root]'
+  run lib::os::disk_device_id
+  assert_success
+  assert_output /dev/mapper/root
+  DISK_FIXTURE=/dev/nvme0n1p2
+  run lib::os::disk_device_id
+  assert_output /dev/nvme0n1p2
+  DISK_FIXTURE=overlay
+  run lib::os::disk_device_id
+  assert_failure 1
+  DISK_FIXTURE=$'/dev/sda\n/dev/sdb'
+  run lib::os::disk_device_id
+  assert_failure 1
+}
+
+@test "disk capacity parses only one fdisk byte header under locale C" {
+  # shellcheck disable=SC2329 # fdisk fixture
+  fdisk() {
+    [[ $LC_ALL == C && $* == '-l -- /dev/test' ]] || return 1
+    printf '%s\n' "$CAPACITY_FIXTURE"
+  }
+  CAPACITY_FIXTURE=$'Disk /dev/test: 1 TiB, 1099511627776 bytes, 2147483648 sectors\nDisklabel type: gpt'
+  run lib::os::disk_capacity /dev/test
+  assert_success
+  assert_output 1099511627776
+  CAPACITY_FIXTURE='Disk /dev/test: invalid'
+  run lib::os::disk_capacity /dev/test
+  assert_failure 1
+  CAPACITY_FIXTURE=$'Disk /dev/test: 1 KiB, 1024 bytes, 2 sectors\nDisk /dev/other: 1 KiB, 1024 bytes, 2 sectors'
+  run lib::os::disk_capacity /dev/test
+  assert_failure 1
+  run lib::os::disk_capacity
+  assert_failure 2
+  run lib::os::disk_capacity --help
+  assert_failure 2
+}
+
+@test "Linux inspection explicitly fails on unsupported platforms" {
+  fake_uname_darwin
+  local fn
+  for fn in boot_time machine_id memory disk_device_id; do
+    run "lib::os::$fn"
+    assert_failure 1
+  done
+  run lib::os::disk_capacity /dev/test
+  assert_failure 1
+  run lib::os::metadata --id
+  assert_failure 1
+}
+
+@test "metadata uses allowlisted fields branch fallback and last duplicate values" {
+  # shellcheck disable=SC2329 # os-release fixture
+  cat() { printf '%s\n' "$RELEASE_FIXTURE"; }
+  RELEASE_FIXTURE=$'ID=first\nID=example\nVERSION_ID="24.04.2"\nNAME="Example Linux"\nVERSION_CODENAME=stable'
+  run lib::os::metadata --id
+  assert_output example
+  run lib::os::metadata --name
+  assert_output 'Example Linux'
+  run lib::os::metadata --branch
+  assert_output 24
+  RELEASE_FIXTURE+=$'\nBRANCH="rolling"'
+  run lib::os::metadata --branch
+  assert_output rolling
+  run lib::os::metadata --pretty-name
+  assert_failure 1
+  run lib::os::metadata --arbitrary
+  assert_failure 2
+}
+
+@test "metadata handles shell quoting as data and never evaluates commands" {
+  # shellcheck disable=SC2329 # os-release fixture
+  cat() { printf '%s\n' "$QUOTING_FIXTURE"; }
+  QUOTING_FIXTURE="NAME=\"\$(touch '$TEST_TMP/executed')\""
+  run lib::os::metadata --name
+  assert_success
+  assert_output "\$(touch '$TEST_TMP/executed')"
+  [[ ! -e $TEST_TMP/executed ]]
+
+  QUOTING_FIXTURE='NAME="A \"quoted\" name with \\ backslash"'
+  run lib::os::metadata --name
+  assert_output 'A "quoted" name with \ backslash'
+  QUOTING_FIXTURE="NAME='single quoted'"
+  run lib::os::metadata --name
+  assert_output 'single quoted'
+  QUOTING_FIXTURE='NAME="unclosed'
+  run lib::os::metadata --name
+  assert_failure 1
+}
+
+@test "account existence distinguishes absent records and backend errors" {
+  # shellcheck disable=SC2329 # NSS fixture
+  getent() {
+    case "$1:$2" in
+      passwd:example) printf 'example:x:123:456::/home/example:/bin/sh\n' ;;
+      group:example) printf 'example:x:456:\n' ;;
+      *:absent) return 2 ;;
+      *) return 1 ;;
+    esac
+  }
+  run lib::os::user_exists example
+  assert_success
+  assert_output ''
+  run lib::os::group_exists example
+  assert_success
+  run lib::os::user_exists absent
+  assert_failure 1
+  run lib::os::group_exists backend
+  assert_failure 3
+  run lib::os::user_exists --help
+  assert_failure 2
+}
+
+@test "ensure functions leave existing accounts untouched despite differing options" {
+  # shellcheck disable=SC2329 # NSS fixture
+  getent() {
+    if [[ $1 == passwd ]]; then
+      printf 'example:x:123:456::/home/example:/bin/sh\n'
+    else
+      printf 'example:x:456:\n'
+    fi
+  }
+  # shellcheck disable=SC2329 # mutation must never occur
+  useradd() {
+    touch "$TEST_TMP/unexpected"
+    return 99
+  }
+  # shellcheck disable=SC2329
+  groupadd() {
+    touch "$TEST_TMP/unexpected"
+    return 99
+  }
+  run lib::os::user_ensure example --id 999 --home /different --system
+  assert_success
+  assert_output "user 'example' already exists."
+  run lib::os::group_ensure example --id 999 --system
+  assert_success
+  [[ ! -e $TEST_TMP/unexpected ]]
+}
+
+@test "account creation forwards frontend options and system policy" {
+  # shellcheck disable=SC2329 # NSS fixture
+  getent() { return 2; }
+  # shellcheck disable=SC2329 # mutation fixture
+  useradd() { printf '<%s>' "$@" >"$TEST_TMP/arguments"; }
+  # shellcheck disable=SC2329
+  groupadd() { printf '<%s>' "$@" >"$TEST_TMP/arguments"; }
+  run lib::os::user_ensure example -i 00123 -g staff -a audio,00456 -h '/srv/a home' -s
+  assert_success
+  assert_equal "$(cat "$TEST_TMP/arguments")" '<--uid><123><--system><--gid><staff><--home-dir></srv/a home><--groups><audio,456><--><example>'
+  run lib::os::group_ensure example -i 00456 -s
+  assert_success
+  assert_equal "$(cat "$TEST_TMP/arguments")" '<--gid><456><--system><--><example>'
+}
+
+@test "update functions require existing accounts and append supplementary groups" {
+  # shellcheck disable=SC2329 # NSS fixture
+  getent() {
+    [[ $2 != absent ]] || return 2
+    if [[ $1 == passwd ]]; then
+      printf 'example:x:123:456::/home/example:/bin/sh\n'
+    else
+      printf 'example:x:456:\n'
+    fi
+  }
+  # shellcheck disable=SC2329 # mutation fixture
+  usermod() { printf '<%s>' "$@" >"$TEST_TMP/arguments"; }
+  # shellcheck disable=SC2329
+  groupmod() { printf '<%s>' "$@" >"$TEST_TMP/arguments"; }
+  run lib::os::user_update example -i 124 -g staff -a audio -h /srv/new
+  assert_success
+  assert_equal "$(cat "$TEST_TMP/arguments")" '<--uid><124><--gid><staff><--home></srv/new><--append><--groups><audio><--><example>'
+  run lib::os::group_update example -i 457
+  assert_success
+  assert_equal "$(cat "$TEST_TMP/arguments")" '<--gid><457><--><example>'
+  run lib::os::user_update absent -i 9
+  assert_failure 1
+  run lib::os::user_update example --system
+  assert_failure 2
+  run lib::os::group_update example
+  assert_failure 2
+}
+
+@test "account backend errors and invalid options cannot trigger a mutation" {
+  # shellcheck disable=SC2329 # NSS fixture
+  getent() { return 1; }
+  # shellcheck disable=SC2329 # mutation sentinel
+  useradd() { touch "$TEST_TMP/unexpected"; }
+  run lib::os::user_ensure example
+  assert_failure 1
+  [[ ! -e $TEST_TMP/unexpected ]]
+
+  # shellcheck disable=SC2329
+  getent() { return 2; }
+  run lib::os::user_ensure example --id 4294967295
+  assert_failure 2
+  run lib::os::user_ensure example --append-groups 'one,,two'
+  assert_failure 2
+  run lib::os::user_ensure example --home relative
+  assert_failure 2
+  [[ ! -e $TEST_TMP/unexpected ]]
+
+  # shellcheck disable=SC2329
+  useradd() { return 9; }
+  run lib::os::user_ensure example
+  assert_failure 1
+}
+
+@test "account wrappers preserve strict caller state and local parser arrays" {
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    getent() { return 2; }
+    groupadd() { :; }
+    declare -a OPTS=(caller)
+    declare -A OPTS_HELP=([caller]=help) OPTS_VALUES=([caller]=value)
+    before=$(set +o; declare -p OPTS OPTS_HELP OPTS_VALUES; pwd; umask)
+    lib::os::group_ensure example
+    getent() { printf "example:x:123:\n"; }
+    status=0
+    lib::os::group_update example || status=$?
+    [[ $status == 2 ]]
+    after=$(set +o; declare -p OPTS OPTS_HELP OPTS_VALUES; pwd; umask)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT"
+  assert_success
+  assert_output ''
+}
+
+@test "recursive configure includes hidden files and applies directory modes after traversal" {
+  mkdir -p "$TEST_TMP/tree/sub"
+  touch "$TEST_TMP/tree/.hidden" "$TEST_TMP/tree/sub/child"
+  chmod 2755 "$TEST_TMP/tree/sub"
+  run lib::os::recursive_configure "$TEST_TMP/tree" -f 640 -d 700
+  assert_success
+  assert_output ''
+  local mode
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/tree/sub" attributes)
+  [[ ${mode%% *} == *700 ]]
+  [[ ${mode%% *} != *2700 ]]
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/tree/.hidden" attributes)
+  [[ ${mode%% *} == *640 ]]
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/tree/sub/child" attributes)
+  [[ ${mode%% *} == *640 ]]
+}
+
+@test "recursive configure follows links by default and no-dereference skips their targets" {
+  mkdir -p "$TEST_TMP/tree" "$TEST_TMP/outside"
+  touch "$TEST_TMP/outside/file"
+  chmod 600 "$TEST_TMP/outside/file"
+  ln -s ../outside "$TEST_TMP/tree/link"
+  lib::os::recursive_configure "$TEST_TMP/tree" -f 644 -n
+  local mode
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/outside/file" attributes)
+  [[ ${mode%% *} == *600 ]]
+  lib::os::recursive_configure "$TEST_TMP/tree" -f 644
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/outside/file" attributes)
+  [[ ${mode%% *} == *644 ]]
+
+  lib::os::recursive_configure "$TEST_TMP/tree/link/" -f 600 -n
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/outside/file" attributes)
+  [[ ${mode%% *} == *644 ]]
+}
+
+@test "recursive ownership uses chown -h for links without changing their modes" {
+  mkdir "$TEST_TMP/tree"
+  ln -s absent "$TEST_TMP/tree/broken"
+  # shellcheck disable=SC2329 # ownership fixture
+  chown() { printf '<%s>' "$@" >>"$TEST_TMP/chown"; }
+  run lib::os::recursive_configure "$TEST_TMP/tree" -u 123 -g 456 -f 600 -n
+  assert_success
+  [[ $(cat "$TEST_TMP/chown") == *"<-h><--><123:456><$TEST_TMP/tree/broken>"* ]]
+  [[ -L $TEST_TMP/tree/broken ]]
+}
+
+@test "recursive configure rejects loops before mutations and validates modes first" {
+  mkdir -p "$TEST_TMP/tree/sub"
+  touch "$TEST_TMP/tree/file"
+  ln -s .. "$TEST_TMP/tree/sub/loop"
+  # shellcheck disable=SC2329 # mutation sentinel
+  chmod() { touch "$TEST_TMP/unexpected"; }
+  run lib::os::recursive_configure "$TEST_TMP/tree" -f 600
+  assert_failure 1
+  [[ ! -e $TEST_TMP/unexpected ]]
+  run lib::os::recursive_configure "$TEST_TMP/tree" -f 888
+  assert_failure 2
+  run lib::os::recursive_configure "$TEST_TMP/tree" -u 'user:group'
+  assert_failure 2
+  run lib::os::recursive_configure "$TEST_TMP/tree" -n
+  assert_failure 2
+  [[ ! -e $TEST_TMP/unexpected ]]
+}
+
+@test "recursive configure preserves newline paths and strict caller state" {
+  mkdir -p "$TEST_TMP/tree"
+  touch "$TEST_TMP/tree/"$'a\nb'
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    trap ": caller" EXIT
+    umask 027
+    before=$(set +o; trap -p; pwd; umask)
+    lib::os::recursive_configure "$2/tree" -f 600
+    after=$(set +o; trap -p; pwd; umask)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT" "$TEST_TMP"
+  assert_success
+  local mode
+  mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/tree/"$'a\nb' attributes)
+  [[ ${mode%% *} == *600 ]]
+}
