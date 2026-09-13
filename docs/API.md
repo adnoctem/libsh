@@ -434,15 +434,28 @@ text uses sed syntax (`&`, `\1` through `\9`, `\\`, `\&`); other backslash escap
 are rejected. Pass actual tab/newline bytes when required. Insertion text is
 literal. No match returns `1` and leaves the file unchanged.
 
-Edits require a readable regular text file without NUL bytes, a writable parent
-for staging, and permission to preserve mode, UID and GID. Final symlinks are
-followed by default; `-n`/`--no-dereference` refuses them. Parent path components
-resolve normally. Hard-linked targets are refused in either mode. A successful
-edit replaces the target inode after staging beside it. Ordinary concurrent
-changes are checked, but this is not a defense against hostile path races. ACLs,
-extended attributes and timestamps are not preservation guarantees. The helper
-uses `sed`, `stat`, `readlink`, `mktemp`, `cp`, `mv`, `rm`, `chmod`, `chown`, `cmp`,
-`tr`, `tail`, `od`, `head`, and `uname`; no Perl dependency is needed.
+Edits require a readable regular text file without NUL bytes. Scratch snapshots, sed scripts and
+transformed output use a private directory under `/tmp`, independent of `TMPDIR`, and are removed
+on completion. Final symlinks are followed by default; `-n`/`--no-dereference` refuses them. Parent
+path components resolve normally. Hard-linked targets are refused with either commit mode.
+
+By default, the editor creates one final staging file beside the target and atomically replaces
+the target inode. This requires a writable parent and permission to preserve mode, UID and GID.
+The final sibling file is necessary for same-filesystem rename; all other work stays in `/tmp`.
+There is no automatic fallback to in-place writing.
+
+`-i`/`--in-place` overwrites the existing file after transformation and validation, without
+renaming it or attempting chmod/chown. It requires permission to write the file, but not to create
+files in its parent directory. This supports existing hosts/configuration files in restricted
+directories and mounted filesystems. The existing file object is retained; filesystem-managed
+metadata can still change when its contents are written. Windows access controls still apply on WSL.
+
+No match or invalid expressions leave the target unchanged in both modes. An in-place write is
+not atomic: interruption or a write failure can leave truncated or partial contents, with no
+rollback guarantee. Operational failures return `1`. Ordinary concurrent changes are checked before
+commit, but this is not a defense against hostile path races. ACLs, extended attributes and timestamps
+are not preservation guarantees. The helper uses `sed`, `stat`, `readlink`, `mktemp`, `cp`, `mv`, `rm`,
+`chmod`, `cmp`, `tr`, `cat`, `tail`, `head`, and `uname`; no Perl dependency is needed.
 
 ```bash
 lib::fs::ensure_directory ./config
@@ -697,7 +710,7 @@ Ensure a directory itself exists.
 #### `lib::fs::file_replace_content`
 
 ```text
-lib::fs::file_replace_content FILE PATTERN REPLACEMENT [-n|--no-dereference]
+lib::fs::file_replace_content FILE PATTERN REPLACEMENT [-n|--no-dereference] [-i|--in-place]
 ```
 
 Replace all ERE matches within each line using sed -E replacement syntax. Use & for the match,
@@ -713,7 +726,7 @@ Symlinks are followed by default; hard-linked and NUL-containing files are refus
 
 - 3 - sed replacement text
 
-- 4+ - Optional -n or --no-dereference to refuse a final symlink
+- 4+ - Optional -n/--no-dereference to refuse a final symlink; -i/--in-place to overwrite the existing file
 
 **Outputs:** Edited file; errors to stderr. No stdout.
 
@@ -724,7 +737,7 @@ Symlinks are followed by default; hard-linked and NUL-containing files are refus
 #### `lib::fs::file_replace_content_multiline`
 
 ```text
-lib::fs::file_replace_content_multiline FILE PATTERN REPLACEMENT [-n|--no-dereference]
+lib::fs::file_replace_content_multiline FILE PATTERN REPLACEMENT [-n|--no-dereference] [-i|--in-place]
 ```
 
 Replace all ERE matches across the complete file using sed -E. The whole file is held in sed pattern
@@ -739,7 +752,7 @@ Replacement syntax and metadata/link handling are the same as file_replace_conte
 
 - 3 - sed replacement text
 
-- 4+ - Optional -n or --no-dereference to refuse a final symlink
+- 4+ - Optional -n/--no-dereference to refuse a final symlink; -i/--in-place to overwrite the existing file
 
 **Outputs:** Edited file; errors to stderr. No stdout.
 
@@ -750,7 +763,7 @@ Replacement syntax and metadata/link handling are the same as file_replace_conte
 #### `lib::fs::file_remove_content`
 
 ```text
-lib::fs::file_remove_content FILE PATTERN [-n|--no-dereference]
+lib::fs::file_remove_content FILE PATTERN [-n|--no-dereference] [-i|--in-place]
 ```
 
 Remove every complete line matching an ERE, including its terminator. Unmatched bytes keep their
@@ -762,7 +775,7 @@ original line endings. Metadata and link handling are the same as file_replace_c
 
 - 2 - Nonempty POSIX extended regular expression
 
-- 3+ - Optional -n or --no-dereference to refuse a final symlink
+- 3+ - Optional -n/--no-dereference to refuse a final symlink; -i/--in-place to overwrite the existing file
 
 **Outputs:** Edited file; errors to stderr. No stdout.
 
@@ -773,7 +786,7 @@ original line endings. Metadata and link handling are the same as file_replace_c
 #### `lib::fs::file_append_content_after_last_match`
 
 ```text
-lib::fs::file_append_content_after_last_match FILE PATTERN TEXT [-n|--no-dereference]
+lib::fs::file_append_content_after_last_match FILE PATTERN TEXT [-n|--no-dereference] [-i|--in-place]
 ```
 
 Insert literal text after the last line matching an ERE. Add a separator newline after an
@@ -789,7 +802,7 @@ Metadata and link handling are the same as file_replace_content.
 
 - 3 - Literal text to insert (not sed replacement syntax)
 
-- 4+ - Optional -n or --no-dereference to refuse a final symlink
+- 4+ - Optional -n/--no-dereference to refuse a final symlink; -i/--in-place to overwrite the existing file
 
 **Outputs:** Edited file; errors to stderr. No stdout.
 

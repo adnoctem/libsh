@@ -513,3 +513,128 @@ setup() {
   assert_success
   [[ ! -s $target ]]
 }
+
+@test "in-place editing works in a nonwritable directory and retains the file identity" {
+  if [[ $EUID == 0 ]]; then skip 'root bypasses directory permissions'; fi
+  mkdir "$TEST_TMP/restricted"
+  printf 'old\nkeep\n' >"$TEST_TMP/restricted/file"
+  local before
+  before=$(__libsh_fs_edit_identity "$TEST_TMP/restricted/file")
+  chmod 555 "$TEST_TMP/restricted"
+
+  run lib::fs::file_replace_content "$TEST_TMP/restricted/file" old new -i
+  chmod 755 "$TEST_TMP/restricted"
+  assert_success
+  assert_equal "$(__libsh_fs_edit_identity "$TEST_TMP/restricted/file")" "$before"
+  assert_equal "$(cat "$TEST_TMP/restricted/file")" $'new\nkeep'
+
+  chmod 555 "$TEST_TMP/restricted"
+  run lib::fs::file_replace_content "$TEST_TMP/restricted/file" new rejected
+  chmod 755 "$TEST_TMP/restricted"
+  assert_failure 1
+  assert_equal "$(cat "$TEST_TMP/restricted/file")" $'new\nkeep'
+}
+
+@test "all editing APIs support in-place mode with exact byte handling" {
+  # shellcheck disable=SC2329 # mounted files may refuse metadata changes/rename
+  chmod() { return 99; }
+  # shellcheck disable=SC2329
+  chown() { return 99; }
+  # shellcheck disable=SC2329
+  mv() { return 99; }
+  printf 'old\nkeep' >"$TEST_TMP/file"
+  local before
+  before=$(__libsh_fs_edit_identity "$TEST_TMP/file")
+
+  lib::fs::file_replace_content "$TEST_TMP/file" old new --in-place
+  lib::fs::file_replace_content_multiline "$TEST_TMP/file" 'new\nkeep' $'first\nlast' -i
+  lib::fs::file_append_content_after_last_match "$TEST_TMP/file" last $'tail\n' --in-place
+  lib::fs::file_remove_content "$TEST_TMP/file" first -i
+
+  printf 'last\ntail\n' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+  assert_equal "$(__libsh_fs_edit_identity "$TEST_TMP/file")" "$before"
+}
+
+@test "in-place edits stage privately in tmp and clean up on success and no match" {
+  printf old >"$TEST_TMP/file"
+  # shellcheck disable=SC2329 # inspect actual scratch allocation
+  mktemp() {
+    local made
+    made=$(command mktemp "$@") || return
+    printf '%s\n' "$made" >>"$TEST_TMP/work-paths"
+    __libsh_fs_edit_identity "$made" >>"$TEST_TMP/work-identities"
+    printf '%s\n' "$made"
+  }
+  # An unrelated TMPDIR must not redirect editing scratch work to a mount.
+  TMPDIR="$TEST_TMP/absent" lib::fs::file_replace_content "$TEST_TMP/file" old new -i
+  run lib::fs::file_replace_content "$TEST_TMP/file" absent nope -i
+  assert_failure 1
+
+  local path mode uid _
+  while IFS= read -r path; do
+    [[ $path == /tmp/.libsh-edit.* && ! -e $path ]]
+  done <"$TEST_TMP/work-paths"
+  while read -r _ _ _ mode uid _; do
+    ((8#$mode == 0700)) && [[ $uid == "$EUID" ]]
+  done <"$TEST_TMP/work-identities"
+}
+
+@test "in-place mode retains link policy and leaves files intact on invalid expressions" {
+  printf old >"$TEST_TMP/file"
+  ln -s file "$TEST_TMP/link"
+  run lib::fs::file_replace_content "$TEST_TMP/link" old new -i -n
+  assert_failure 1
+  lib::fs::file_replace_content "$TEST_TMP/link" old new -i
+  [[ -L $TEST_TMP/link ]]
+  assert_equal "$(cat "$TEST_TMP/file")" new
+
+  run lib::fs::file_replace_content "$TEST_TMP/file" '[' broken --in-place
+  assert_failure 2
+  assert_equal "$(cat "$TEST_TMP/file")" new
+  ln "$TEST_TMP/file" "$TEST_TMP/hard"
+  run lib::fs::file_replace_content "$TEST_TMP/file" new rejected -i
+  assert_failure 1
+  assert_equal "$(cat "$TEST_TMP/file")" new
+}
+
+@test "in-place commit failures report possible partial contents" {
+  printf old >"$TEST_TMP/file"
+  # shellcheck disable=SC2329 # fail only while streaming the final result
+  cat() {
+    if [[ $# == 2 && $1 == -- && $2 == */result ]]; then
+      printf partial
+      return 1
+    fi
+    command cat "$@"
+  }
+
+  run lib::fs::file_replace_content "$TEST_TMP/file" old new -i
+  assert_failure 1
+  assert_output --partial 'may contain partial contents'
+  assert_equal "$(command cat "$TEST_TMP/file")" partial
+}
+
+@test "in-place editing checks concurrent changes and preserves strict caller state" {
+  printf old >"$TEST_TMP/file"
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    set -C
+    trap ":" USR1
+    before=$(set +o; trap -p; pwd; umask)
+    lib::fs::file_replace_content "$2/file" old new -i
+    after=$(set +o; trap -p; pwd; umask)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT" "$TEST_TMP"
+  assert_success
+
+  # shellcheck disable=SC2329 # simulate a concurrent writer during transformation
+  sed() {
+    command sed "$@" || return
+    printf concurrent >"$TEST_TMP/file"
+  }
+  run lib::fs::file_replace_content "$TEST_TMP/file" new rejected -i
+  assert_failure 1
+  assert_equal "$(cat "$TEST_TMP/file")" concurrent
+}

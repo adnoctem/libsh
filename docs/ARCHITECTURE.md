@@ -107,8 +107,9 @@ unless a function documents otherwise. In particular, legacy TCP probes may exit
 available for callers that need to recover.
 
 Privilege escalation is explicit through `lib::os::root_exec`. Its environment-preservation option forwards to
-sudo policy; it does not transfer sourced functions into a child shell. Filesystem edits stage changes where
-documented, but the library does not provide a transaction across several files or rollback after partial failure.
+sudo policy; it does not transfer sourced functions into a child shell. Filesystem edits prepare changes in `/tmp`; default replacement uses one final sibling staging file. Explicit
+`--in-place` writes retain the existing file object and need only file-write permission, but can leave partial
+contents on failure. The library does not provide transactions across files or rollback after partial failure.
 
 ## Verification and Publishing
 

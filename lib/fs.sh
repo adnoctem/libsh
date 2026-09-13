@@ -737,10 +737,11 @@ function __libsh_fs_edit_transform() {
 }
 
 #######################################
-# Stage and commit a text edit while preserving mode, UID and GID.
-# The work directory is private and on the target filesystem. Hard-linked
-# targets are refused. ACLs/xattrs and concurrent hostile path changes are
-# outside this contract; ordinary concurrent content changes are checked.
+# Stage a text edit privately in /tmp. Default replacement preserves mode, UID
+# and GID using a final staging file beside the target. In-place mode overwrites
+# the existing file without replacement and may leave partial data on failure.
+# Hard-linked targets are refused. ACLs/xattrs and concurrent hostile path changes
+# are outside this contract; ordinary concurrent content changes are checked.
 # Globals:
 #   PATH (read); parser arrays, locale, umask and traps stay in this subshell.
 # Arguments:
@@ -748,7 +749,7 @@ function __libsh_fs_edit_transform() {
 #   2 - File path
 #   3 - Nonempty ERE pattern
 #   4 - Replacement/insertion text (empty for remove)
-#   5+ - Optional -n or --no-dereference
+#   5+ - Optional -n/--no-dereference and -i/--in-place
 # Outputs:
 #   Updated file on success; errors to stderr. No stdout.
 # Returns:
@@ -760,17 +761,25 @@ function __libsh_fs_edit_transform() {
 function __libsh_fs_edit() (
   local operation=$1 requested=$2 pattern=$3 content=$4
   local target current identity device inode links mode uid gid stage_identity
-  local __libsh_fs_work=''
+  local __libsh_fs_work='' __libsh_fs_stage=''
   local LC_ALL=C
   # Parser inputs are read by lib::opt::parse through Bash dynamic scope.
   # shellcheck disable=SC2034
-  local -a OPTS=('-n,--no-dereference:no_dereference:0:optional')
+  local -a OPTS=(
+    '-n,--no-dereference:no_dereference:0:optional'
+    '-i,--in-place:in_place:0:optional'
+  )
   # shellcheck disable=SC2034
-  local -A OPTS_HELP=([no_dereference]='Refuse symlink targets') OPTS_VALUES=()
+  local -A OPTS_HELP=(
+    [no_dereference]='Refuse symlink targets'
+    [in_place]='Overwrite the existing file without replacing it'
+  ) OPTS_VALUES=()
 
   shift 4
   lib::opt::parse ${1+"$@"} || return 2
   export LC_ALL
+  # Scratch files are intentionally rewritten; caller options stay unchanged.
+  set +C
 
   if [[ -z $requested || -z $pattern ]]; then
     lib::log::print_error 'File editing requires a nonempty path and pattern.'
@@ -798,8 +807,8 @@ function __libsh_fs_edit() (
   fi
 
   umask 077
-  __libsh_fs_work=$(mktemp -d "${target%/*}/.libsh-edit.XXXXXXXX") || return 1
-  trap 'rm -rf -- "$__libsh_fs_work"' EXIT
+  __libsh_fs_work=$(mktemp -d /tmp/.libsh-edit.XXXXXXXX) || return 1
+  trap '[[ -z $__libsh_fs_stage ]] || rm -f -- "$__libsh_fs_stage"; rm -rf -- "$__libsh_fs_work"' EXIT
   trap 'exit 1' HUP INT TERM
 
   cp -- "$target" "$__libsh_fs_work/original" || return 1
@@ -809,15 +818,23 @@ function __libsh_fs_edit() (
     return 2
   fi
 
-  cp -p -- "$target" "$__libsh_fs_work/result" || return 1
-  chmod u+w "$__libsh_fs_work/result" || return 1
+  : >"$__libsh_fs_work/result" || return 1
   __libsh_fs_edit_transform "$operation" "$pattern" "$content" "$__libsh_fs_work" || return $?
 
-  chmod "$mode" "$__libsh_fs_work/result" || return 1
-  stage_identity=$(__libsh_fs_edit_identity "$__libsh_fs_work/result") || return 1
-  if [[ ${stage_identity#* * * } != "$mode $uid $gid" ]]; then
-    lib::log::print_error 'Could not preserve file mode and ownership.'
-    return 1
+  if [[ ${OPTS_VALUES[in_place]:-0} != 1 ]]; then
+    # Only the final replacement needs the destination filesystem. Scratch
+    # files stay in /tmp; never rely on mv's cross-filesystem copy fallback.
+    __libsh_fs_stage=$(mktemp "${target%/*}/.libsh-edit.XXXXXXXX") || return 1
+    cp -p -- "$target" "$__libsh_fs_stage" || return 1
+    chmod u+w "$__libsh_fs_stage" || return 1
+    cat -- "$__libsh_fs_work/result" >"$__libsh_fs_stage" || return 1
+    chmod "$mode" "$__libsh_fs_stage" || return 1
+
+    stage_identity=$(__libsh_fs_edit_identity "$__libsh_fs_stage") || return 1
+    if [[ ${stage_identity#* * * } != "$mode $uid $gid" ]]; then
+      lib::log::print_error 'Could not preserve file mode and ownership.'
+      return 1
+    fi
   fi
 
   current=$(__libsh_fs_edit_target "$requested" "${OPTS_VALUES[no_dereference]:-0}") || return 1
@@ -832,7 +849,16 @@ function __libsh_fs_edit() (
     return 0
   fi
 
-  mv -f -- "$__libsh_fs_work/result" "$target" || return 1
+  if [[ ${OPTS_VALUES[in_place]:-0} == 1 ]]; then
+    # Transform and verify before truncation. Keep the existing file object;
+    # no rename, chmod or chown is attempted on this commit path.
+    if ! cat -- "$__libsh_fs_work/result" >|"$target"; then
+      lib::log::print_error 'In-place write failed; the file may contain partial contents.'
+      return 1
+    fi
+  else
+    mv -f -- "$__libsh_fs_stage" "$target" || return 1
+  fi
 )
 
 #######################################
@@ -841,13 +867,17 @@ function __libsh_fs_edit() (
 # Supply actual tabs/newlines rather than nonportable replacement escapes.
 # Unmodified bytes and the original terminal newline are preserved. Symlinks
 # are followed by default; hard-linked and NUL-containing files are refused.
+# Scratch files use /tmp. Default replacement stages one final sibling file.
+# In-place mode needs only file-write permission but can leave partial contents
+# on write failure; filesystem-managed metadata may change when writing.
 # Globals:
 #   None
 # Arguments:
 #   1 - File path
 #   2 - Nonempty POSIX extended regular expression
 #   3 - sed replacement text
-#   4+ - Optional -n or --no-dereference to refuse a final symlink
+#   4+ - Optional -n/--no-dereference to refuse a final symlink;
+#        -i/--in-place to overwrite contents without replacing the file
 # Outputs:
 #   Edited file; errors to stderr. No stdout.
 # Returns:
@@ -875,7 +905,8 @@ function lib::fs::file_replace_content() {
 #   1 - File path
 #   2 - Nonempty POSIX extended regular expression
 #   3 - sed replacement text
-#   4+ - Optional -n or --no-dereference to refuse a final symlink
+#   4+ - Optional -n/--no-dereference to refuse a final symlink;
+#        -i/--in-place to overwrite contents without replacing the file
 # Outputs:
 #   Edited file; errors to stderr. No stdout.
 # Returns:
@@ -901,7 +932,8 @@ function lib::fs::file_replace_content_multiline() {
 # Arguments:
 #   1 - File path
 #   2 - Nonempty POSIX extended regular expression
-#   3+ - Optional -n or --no-dereference to refuse a final symlink
+#   3+ - Optional -n/--no-dereference to refuse a final symlink;
+#        -i/--in-place to overwrite contents without replacing the file
 # Outputs:
 #   Edited file; errors to stderr. No stdout.
 # Returns:
@@ -933,7 +965,8 @@ function lib::fs::file_remove_content() {
 #   1 - File path
 #   2 - Nonempty POSIX extended regular expression
 #   3 - Literal text to insert (not sed replacement syntax)
-#   4+ - Optional -n or --no-dereference to refuse a final symlink
+#   4+ - Optional -n/--no-dereference to refuse a final symlink;
+#        -i/--in-place to overwrite contents without replacing the file
 # Outputs:
 #   Edited file; errors to stderr. No stdout.
 # Returns:
