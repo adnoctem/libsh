@@ -6,6 +6,26 @@
 # ref: https://specifications.freedesktop.org/basedir-spec/latest/
 
 #######################################
+# Return the current UTC timestamp in ISO 8601 format at second precision.
+# Globals:
+#   PATH (read)
+# Arguments:
+#   None
+# Outputs:
+#   YYYY-MM-DDTHH:MM:SSZ and a newline to stdout; backend errors to stderr.
+# Returns:
+#   0 success, 1 date/output failure, 2 unexpected arguments.
+# Dependencies:
+#   date (GNU and BSD formats supported).
+#######################################
+# shellcheck disable=SC2120 # public helper rejects unexpected arguments
+function lib::os::date() {
+  [[ $# == 0 ]] || return 2
+
+  date -u '+%Y-%m-%dT%H:%M:%SZ' || return 1
+}
+
+#######################################
 # Resolve the user's XDG config directory. XDG_CONFIG_HOME always wins when
 # set; otherwise falls back to the platform-native default -- macOS doesn't
 # follow the XDG spec, so Darwin gets ~/Library/Application Support instead
@@ -141,7 +161,7 @@ function lib::os::state_home() {
 #######################################
 function lib::os::is_executable() {
   if [[ $# != 1 ]]; then
-    lib::log::red 'is_executable requires one command name.'
+    lib::log::print_error 'is_executable requires one command name.'
     return 2
   fi
 
@@ -198,7 +218,7 @@ function lib::os::root_exec() {
         break
         ;;
       -*)
-        lib::log::red "Unknown root_exec option: $1"
+        lib::log::print_error "Unknown root_exec option: $1"
         return 2
         ;;
       *) break ;;
@@ -206,7 +226,7 @@ function lib::os::root_exec() {
   done
 
   if [[ $# == 0 || -z $1 ]]; then
-    lib::log::red 'root_exec requires a command.'
+    lib::log::print_error 'root_exec requires a command.'
     return 2
   fi
 
@@ -235,7 +255,7 @@ function lib::os::root_exec() {
 #######################################
 function lib::os::rc() {
   if [[ $# != 0 ]]; then
-    lib::log::red 'rc takes no arguments.'
+    lib::log::print_error 'rc takes no arguments.'
     return 2
   fi
 
@@ -263,7 +283,7 @@ function __libsh_os_linux() {
   local platform
   platform=$(uname -s) || return 1
   if [[ $platform != Linux ]]; then
-    lib::log::red 'This operation requires Linux.'
+    lib::log::print_error 'This operation requires Linux.'
     return 1
   fi
 }
@@ -742,7 +762,7 @@ function __libsh_os_account_command() {
     status=$?
     [[ $status == 1 ]] || return 1
     if [[ $operation == update ]]; then
-      lib::log::red "$kind '$account' does not exist."
+      lib::log::print_error "$kind '$account' does not exist."
       return 1
     fi
   fi
@@ -884,7 +904,7 @@ function lib::os::recursive_configure() (
       ancestor=${ancestor%/*}
       [[ -n $ancestor ]] || ancestor=/
       if [[ $entry -ef $ancestor ]]; then
-        lib::log::red "Directory cycle detected: $entry"
+        lib::log::print_error "Directory cycle detected: $entry"
         return 1
       fi
     done

@@ -42,7 +42,7 @@ function __libsh_cmp_decimal() {
 #######################################
 function lib::cmp::semver_compare() {
   if [[ $# != 2 ]] || ! lib::core::semver_validate "$1" || ! lib::core::semver_validate "$2"; then
-    lib::log::red 'semver_compare requires two complete valid versions.'
+    lib::log::print_error 'semver_compare requires two complete valid versions.'
     return 2
   fi
 
@@ -119,7 +119,7 @@ function lib::cmp::size_compare() {
   local left right
 
   if [[ $# != 2 ]] || ! left=$(__libsh_data_uint "$1") || ! right=$(__libsh_data_uint "$2"); then
-    lib::log::red 'size_compare requires two nonnegative byte counts within signed 64-bit range.'
+    lib::log::print_error 'size_compare requires two nonnegative byte counts within signed 64-bit range.'
     return 2
   fi
 
@@ -145,7 +145,7 @@ function __libsh_cmp_attributes() {
   record=$(__libsh_fs_stat "$1" attributes "$follow") || return 2
 
   if [[ ! $record =~ ^[0-7]{1,4}\ [0-9]+\ [0-9]+\ -?[0-9]+\ [0-9]+$ ]]; then
-    lib::log::red 'Invalid filesystem attribute record.'
+    lib::log::print_error 'Invalid filesystem attribute record.'
     return 2
   fi
 
@@ -176,7 +176,7 @@ function __libsh_cmp_attributes() {
 #######################################
 function lib::cmp::file_compare() {
   if [[ $# != 2 || ! -f ${1:-} || ! -f ${2:-} ]]; then
-    lib::log::red 'file_compare requires two existing regular files.'
+    lib::log::print_error 'file_compare requires two existing regular files.'
     return 2
   fi
 
@@ -204,7 +204,7 @@ function lib::cmp::file_compare() {
 #######################################
 function lib::cmp::file_diff() {
   if [[ $# != 2 || ! -f ${1:-} || ! -f ${2:-} || ! -r $1 || ! -r $2 ]]; then
-    lib::log::red 'file_diff requires two readable regular files.'
+    lib::log::print_error 'file_diff requires two readable regular files.'
     return 2
   fi
 
@@ -220,7 +220,7 @@ function lib::cmp::file_diff() {
   fi
 
   [[ $status == 1 ]] && return 1
-  lib::log::red 'File diff failed.'
+  lib::log::print_error 'File diff failed.'
   return 2
 }
 
@@ -243,7 +243,7 @@ function __libsh_cmp_type() {
   elif [[ -f $1 ]]; then
     printf 'file\n'
   else
-    lib::log::red 'Tree comparison encountered a missing or unsupported entry.'
+    lib::log::print_error 'Tree comparison encountered a missing or unsupported entry.'
     return 2
   fi
 }
@@ -264,7 +264,7 @@ function __libsh_cmp_tree_check() {
   local entry type
 
   if [[ ! -r $1 || ! -x $1 ]]; then
-    lib::log::red 'Tree comparison requires readable/searchable directories.'
+    lib::log::print_error 'Tree comparison requires readable/searchable directories.'
     return 2
   fi
 
@@ -274,7 +274,7 @@ function __libsh_cmp_tree_check() {
       directory) __libsh_cmp_tree_check "$entry" "$2" || return 2 ;;
       file)
         if [[ $2 == contents && ! -r $entry ]]; then
-          lib::log::red 'Tree content comparison requires readable files.'
+          lib::log::print_error 'Tree content comparison requires readable files.'
           return 2
         fi
         ;;
@@ -408,7 +408,7 @@ function __libsh_cmp_tree() {
 #######################################
 function __libsh_cmp_directories() {
   if [[ $# != 3 || ! -d ${2:-} || ! -d ${3:-} ]]; then
-    lib::log::red 'Directory comparison requires two existing directories.'
+    lib::log::print_error 'Directory comparison requires two existing directories.'
     return 2
   fi
 

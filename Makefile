@@ -98,23 +98,22 @@ TEST_IMAGE ?= libsh-container-test
 # ---------------------------
 # Custom functions
 # ---------------------------
-# Logging delegates to lib/log.sh so the colours have one definition in the
-# repository rather than a second copy here.
+# Load core so intent logging shares its timestamp and color implementation.
 
 define log_info
- @. $(LIB_DIR)/log.sh && lib::log::cyan $(1)
+ @. $(LIB_DIR)/lib.sh && lib::log::print_info $(1)
 endef
 
 define log_success
- @. $(LIB_DIR)/log.sh && lib::log::green $(1)
+ @. $(LIB_DIR)/lib.sh && lib::log::print_success $(1)
 endef
 
 define log_notice
- @. $(LIB_DIR)/log.sh && lib::log::yellow $(1)
+ @. $(LIB_DIR)/lib.sh && lib::log::print_notice $(1)
 endef
 
 define log_attention
- @. $(LIB_DIR)/log.sh && lib::log::red $(1)
+ @. $(LIB_DIR)/lib.sh && lib::log::print_error $(1)
 endef
 
 # ---------------------------
@@ -275,20 +274,20 @@ version:
 # a bare 'command not found' halfway through a lint run.
 .PHONY: tools-check
 tools-check:
-	@. $(LIB_DIR)/log.sh; \
+	@. $(LIB_DIR)/lib.sh; \
 	missing=""; \
 	for exe in $(EXECUTABLES); do \
 		if command -v "$$exe" >/dev/null 2>&1; then \
-			lib::log::green "Found $$exe in system PATH."; \
+			lib::log::print_info "Found $$exe in system PATH."; \
 		else \
 			missing="$$missing $$exe"; \
 		fi; \
 	done; \
 	if [ -n "$$missing" ]; then \
-		lib::log::red "Missing required tool(s):$$missing"; \
+		lib::log::print_error "Missing required tool(s):$$missing"; \
 		exit 1; \
 	fi; \
-	lib::log::green "Found all required tools. Ready to proceed!"
+	lib::log::print_success "Found all required tools. Ready to proceed!"
 
 # ---------------------------
 # Formatting

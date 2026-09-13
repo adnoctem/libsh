@@ -895,3 +895,34 @@ teardown() {
   ' _ "$REPO_ROOT"
   assert_success
 }
+
+@test "date returns a UTC timestamp independently of the caller timezone" {
+  TZ=Pacific/Honolulu run lib::os::date
+  assert_success
+  assert_output --regexp '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+
+  # shellcheck disable=SC2329 # verify portable date arguments
+  date() {
+    [[ $# == 2 && $1 == -u && $2 == '+%Y-%m-%dT%H:%M:%SZ' ]] || return 9
+    printf '2026-09-13T12:30:00Z\n'
+  }
+  run lib::os::date
+  assert_success
+  assert_output '2026-09-13T12:30:00Z'
+}
+
+@test "date rejects arguments and reports backend and output failures" {
+  # shellcheck disable=SC2329 # backend sentinel
+  date() {
+    touch "$TEST_TMP/unexpected"
+    return 9
+  }
+  run lib::os::date unexpected
+  assert_failure 2
+  [[ ! -e $TEST_TMP/unexpected ]]
+  run lib::os::date
+  assert_failure 1
+
+  run bash -c 'source "$1/lib/lib.sh"; lib::os::date >&- 2>&-' _ "$REPO_ROOT"
+  assert_failure 1
+}

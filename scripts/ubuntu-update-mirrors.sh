@@ -77,14 +77,14 @@ function ubuntu_update_mirrors::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -145,20 +145,20 @@ function ubuntu_update_mirrors::exec() {
   diff -u -- "$filename" "$rewritten" >/dev/null 2>&1 || rc=$?
 
   if [[ $rc -eq 0 ]]; then
-    lib::log::green "'$filename' already points at $mirror; nothing to change."
+    lib::log::print_success "'$filename' already points at $mirror; nothing to change."
     return 0
   fi
 
   if [[ $rc -gt 1 ]]; then
-    lib::log::red "Could not compare '$filename' with the rewritten version."
+    lib::log::print_error "Could not compare '$filename' with the rewritten version."
     return 1
   fi
 
-  lib::log::yellow "Changes to '$filename':"
+  lib::log::print_notice "Changes to '$filename':"
   diff -u -- "$filename" "$rewritten" || true
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] nothing was written."
+    lib::log::print_notice "[dry-run] nothing was written."
     return 0
   fi
 
@@ -166,21 +166,21 @@ function ubuntu_update_mirrors::exec() {
     # No default, so an unattended run without --yes stops here instead of
     # repointing a production machine's apt sources unwatched.
     if ! ext::ui::confirm "Apply this change to $filename?"; then
-      lib::log::red "Aborted; '$filename' was left untouched."
+      lib::log::print_error "Aborted; '$filename' was left untouched."
       return 1
     fi
   fi
 
   backup="${filename}.libsh-$(date '+%d-%m-%Y+%H-%M-%S').bak"
   lib::os::root_exec cp -- "$filename" "$backup"
-  lib::log::green "Backed the original up to '$backup'."
+  lib::log::print_success "Backed the original up to '$backup'."
 
   # 'cp' onto the existing file keeps its owner and mode, which matters
   # for anything under /etc/apt.
   lib::os::root_exec cp -- "$rewritten" "$filename"
 
-  lib::log::timed_green "Repointed '$filename' at $mirror."
-  lib::log::yellow "Run ./scripts/ubuntu-update-packages.sh to refresh the package lists from the new mirror."
+  lib::log::print_success "Repointed '$filename' at $mirror."
+  lib::log::print_notice "Run ./scripts/ubuntu-update-packages.sh to refresh the package lists from the new mirror."
 }
 
 # --------------------------------
@@ -220,13 +220,13 @@ function main() {
   assume_yes="${OPTS_VALUES[assume_yes]:-}"
 
   if [[ -n ${OPTS_VALUES[country]:-} && -n $mirror ]]; then
-    lib::log::red "--country and --mirror are mutually exclusive; pass only one of them."
+    lib::log::print_error "--country and --mirror are mutually exclusive; pass only one of them."
     return 1
   fi
 
   if [[ -z $mirror ]]; then
     if [[ ! $country =~ ^[a-z]{2}$ ]]; then
-      lib::log::red "Invalid country '$country'; expected a two-letter code such as 'de'."
+      lib::log::print_error "Invalid country '$country'; expected a two-letter code such as 'de'."
       return 1
     fi
 
@@ -236,23 +236,23 @@ function main() {
   # The value is interpolated into a sed replacement, so anything that
   # could end the expression or inject a shell character is refused.
   if [[ ! $mirror =~ ^https?://[A-Za-z0-9._~:/?#@!$\&\'()*+,\;=%-]+$ ]]; then
-    lib::log::red "Invalid mirror '$mirror'; expected an http(s) URI."
+    lib::log::print_error "Invalid mirror '$mirror'; expected an http(s) URI."
     return 1
   fi
 
   filename="${OPTS_VALUES[sources_file]:-$(ubuntu_update_mirrors::sources_file)}"
 
   if [[ -z $filename ]]; then
-    lib::log::red "Found no apt sources file to rewrite; pass one with --sources-file."
+    lib::log::print_error "Found no apt sources file to rewrite; pass one with --sources-file."
     return 1
   fi
 
   if [[ ! -r $filename ]]; then
-    lib::log::red "Sources file '$filename' does not exist or is not readable."
+    lib::log::print_error "Sources file '$filename' does not exist or is not readable."
     return 1
   fi
 
-  lib::log::green "Using apt sources file '$filename'."
+  lib::log::print_info "Using apt sources file '$filename'."
 
   ubuntu_update_mirrors::exec "$filename" "$mirror" "$dry_run" "$assume_yes"
 }

@@ -60,14 +60,14 @@ function release_prepare::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -87,12 +87,12 @@ function release_prepare::validate_version() {
   local version=${1}
 
   if [[ ! $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-    lib::log::red "Invalid version '$version'; expected a bare semver core, e.g. '0.6.0'."
+    lib::log::print_error "Invalid version '$version'; expected a bare semver core, e.g. '0.6.0'."
     return 1
   fi
 
   if [[ $version != 0.* ]]; then
-    lib::log::red "Refusing release '$version': only 0.x releases are enabled. Review the release policy before enabling 1.0.0."
+    lib::log::print_error "Refusing release '$version': only 0.x releases are enabled. Review the release policy before enabling 1.0.0."
     return 1
   fi
 
@@ -115,18 +115,18 @@ function release_prepare::set_makefile_version() {
   local version=${1} dry_run=${2}
 
   if ! grep -qE '^VERSION := ' "$MAKEFILE"; then
-    lib::log::red "Could not find a 'VERSION := ...' line in $MAKEFILE."
+    lib::log::print_error "Could not find a 'VERSION := ...' line in $MAKEFILE."
     return 1
   fi
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] Would set 'VERSION := $version' in $MAKEFILE"
+    lib::log::print_notice "[dry-run] Would set 'VERSION := $version' in $MAKEFILE"
     return 0
   fi
 
   sed -i.bak -E "s/^VERSION := .*/VERSION := $version/" "$MAKEFILE"
   rm -f "$MAKEFILE.bak"
-  lib::log::green "Set 'VERSION := $version' in $MAKEFILE"
+  lib::log::print_success "Set 'VERSION := $version' in $MAKEFILE"
 }
 
 #######################################
@@ -144,13 +144,13 @@ function release_prepare::build() {
   local dry_run=${1}
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] Would run 'make clean build' in $ROOT_DIR"
+    lib::log::print_notice "[dry-run] Would run 'make clean build' in $ROOT_DIR"
     return 0
   fi
 
-  lib::log::timed_yellow "Rebuilding dist/ ..."
+  lib::log::print_info "Rebuilding dist/ ..."
   make -C "$ROOT_DIR" clean build
-  lib::log::timed_green "Finished rebuilding dist/"
+  lib::log::print_success "Finished rebuilding dist/"
 }
 
 #######################################
@@ -169,7 +169,7 @@ function release_prepare::write_checksums() {
   local -a archives=()
 
   if [[ ! -d $DIST_DIR ]]; then
-    lib::log::red "dist/ directory not found at $DIST_DIR."
+    lib::log::print_error "dist/ directory not found at $DIST_DIR."
     return 1
   fi
 
@@ -178,12 +178,12 @@ function release_prepare::write_checksums() {
   done < <(find "$DIST_DIR" -maxdepth 1 -name '*.tar.gz' -print0 | sort -z)
 
   if [[ ${#archives[@]} -eq 0 ]]; then
-    lib::log::red "No *.tar.gz archives found in $DIST_DIR."
+    lib::log::print_error "No *.tar.gz archives found in $DIST_DIR."
     return 1
   fi
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] Would write SHA256 checksums for ${#archives[@]} archive(s) -> $CHECKSUMS_FILE"
+    lib::log::print_notice "[dry-run] Would write SHA256 checksums for ${#archives[@]} archive(s) -> $CHECKSUMS_FILE"
     return 0
   fi
 
@@ -192,7 +192,7 @@ function release_prepare::write_checksums() {
     sha256sum -- "${archives[@]##*/}"
   ) >"$CHECKSUMS_FILE"
 
-  lib::log::green "Checksums written: $CHECKSUMS_FILE"
+  lib::log::print_success "Checksums written: $CHECKSUMS_FILE"
 }
 
 # --------------------------------
@@ -240,7 +240,7 @@ function main() {
   release_prepare::build "$dry_run" || return 1
   release_prepare::write_checksums "$dry_run" || return 1
 
-  lib::log::green "Release prepare complete for version $version."
+  lib::log::print_success "Release prepare complete for version $version."
 }
 
 # ------------

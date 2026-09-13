@@ -45,7 +45,7 @@ function ext::py::venv() {
   fi
 
   if [[ ! -f $activate || ! -r $activate ]]; then
-    lib::log::red 'The venv path has no readable activation script.'
+    lib::log::print_error 'The venv path has no readable activation script.'
     return 1
   fi
 

@@ -15,7 +15,7 @@
 #######################################
 function __libsh_fs_path() {
   if [[ $# != 1 || -z ${1:-} ]]; then
-    lib::log::red 'Expected one nonempty path.'
+    lib::log::print_error 'Expected one nonempty path.'
     return 2
   fi
 }
@@ -80,7 +80,7 @@ function __libsh_fs_normalize() {
 #######################################
 function lib::fs::relativize() {
   if [[ $# != 2 || -z ${1:-} || -z ${2:-} ]]; then
-    lib::log::red 'relativize requires PATH and BASE.'
+    lib::log::print_error 'relativize requires PATH and BASE.'
     return 2
   fi
 
@@ -88,7 +88,7 @@ function lib::fs::relativize() {
 
   if [[ $path != /* || $base != /* ]]; then
     if [[ ${PWD:-} != /* ]]; then
-      lib::log::red 'An absolute PWD is required for relative paths.'
+      lib::log::print_error 'An absolute PWD is required for relative paths.'
       return 2
     fi
     [[ $path == /* ]] || path=$PWD/$path
@@ -166,7 +166,7 @@ function __libsh_fs_stat() {
       stat ${options[@]+"${options[@]}"} -f "$format" "$path" || return 1
       ;;
     *)
-      lib::log::red 'Filesystem metadata requires Linux or macOS.'
+      lib::log::print_error 'Filesystem metadata requires Linux or macOS.'
       return 1
       ;;
   esac
@@ -188,12 +188,12 @@ function __libsh_fs_stat() {
 #######################################
 function lib::fs::owner_get() {
   if [[ $# -lt 1 || $# -gt 2 || -z ${1:-} || ! ${2-uid} =~ ^(uid|gid|user|group)$ ]]; then
-    lib::log::red 'owner_get requires PATH and an optional uid, gid, user, or group field.'
+    lib::log::print_error 'owner_get requires PATH and an optional uid, gid, user, or group field.'
     return 2
   fi
 
   if [[ ! -e $1 ]]; then
-    lib::log::red 'Ownership lookup requires an existing target.'
+    lib::log::print_error 'Ownership lookup requires an existing target.'
     return 1
   fi
 
@@ -267,7 +267,7 @@ function lib::fs::dir_empty() {
   [[ -d $1 ]] || return 1
 
   if [[ ! -r $1 || ! -x $1 ]]; then
-    lib::log::red 'Directory is not readable/searchable.'
+    lib::log::print_error 'Directory is not readable/searchable.'
     return 2
   fi
 
@@ -348,7 +348,7 @@ function lib::fs::file_size() {
   __libsh_fs_path "$@" || return 2
 
   if [[ ! -f $1 ]]; then
-    lib::log::red 'file_size requires an existing regular file.'
+    lib::log::print_error 'file_size requires an existing regular file.'
     return 1
   fi
 
@@ -356,7 +356,7 @@ function lib::fs::file_size() {
 
   size=$(__libsh_fs_stat "$1" size) || return 1
   if ! size=$(__libsh_data_uint "$size"); then
-    lib::log::red 'File size is outside the signed 64-bit byte range.'
+    lib::log::print_error 'File size is outside the signed 64-bit byte range.'
     return 1
   fi
 
@@ -378,7 +378,7 @@ function __libsh_fs_dir_bytes() {
   local entry size total=0
 
   if [[ ! -d $1 || ! -r $1 || ! -x $1 ]]; then
-    lib::log::red 'Directory is not readable/searchable.'
+    lib::log::print_error 'Directory is not readable/searchable.'
     return 1
   fi
 
@@ -392,12 +392,12 @@ function __libsh_fs_dir_bytes() {
     elif [[ -e $entry ]]; then
       continue
     else
-      lib::log::red 'An entry disappeared during directory size inspection.'
+      lib::log::print_error 'An entry disappeared during directory size inspection.'
       return 1
     fi
 
     if ((size > 9223372036854775807 - total)); then
-      lib::log::red 'Directory size exceeds the signed 64-bit byte range.'
+      lib::log::print_error 'Directory size exceeds the signed 64-bit byte range.'
       return 1
     fi
 
@@ -525,7 +525,7 @@ function __libsh_fs_edit_target() (
     [[ -L $path ]] || break
 
     if [[ $2 == 1 || $count == 40 ]]; then
-      lib::log::red 'Editing refused a symlink or an excessive link chain.'
+      lib::log::print_error 'Editing refused a symlink or an excessive link chain.'
       return 1
     fi
 
@@ -566,7 +566,7 @@ function __libsh_fs_edit_escape() {
     elif [[ $character == "\\" ]]; then
       i=$((i + 1))
       if ((i == ${#value})); then
-        lib::log::red 'A sed expression cannot end with an unpaired backslash.'
+        lib::log::print_error 'A sed expression cannot end with an unpaired backslash.'
         return 2
       fi
 
@@ -580,7 +580,7 @@ function __libsh_fs_edit_escape() {
       elif [[ $kind == pattern || $next == "\\" || $next == '&' || $next == [1-9] ]]; then
         encoded+="\\$next"
       else
-        lib::log::red 'Replacement escapes must be \\, \&, or \1 through \9; use literal tabs/newlines.'
+        lib::log::print_error 'Replacement escapes must be \\, \&, or \1 through \9; use literal tabs/newlines.'
         return 2
       fi
     else
@@ -612,7 +612,7 @@ function __libsh_fs_edit_identity() {
     Linux) stat -c '%d %i %h %a %u %g' -- "$1" || return 1 ;;
     Darwin) stat -f '%d %i %l %Mp%03Lp %u %g' "$1" || return 1 ;;
     *)
-      lib::log::red 'File editing requires Linux or macOS.'
+      lib::log::print_error 'File editing requires Linux or macOS.'
       return 1
       ;;
   esac
@@ -647,7 +647,7 @@ function __libsh_fs_edit_transform() {
   done
 
   if [[ -z $delimiter ]]; then
-    lib::log::red 'No available sed delimiter for the supplied expressions.'
+    lib::log::print_error 'No available sed delimiter for the supplied expressions.'
     return 2
   fi
 
@@ -679,12 +679,12 @@ function __libsh_fs_edit_transform() {
   cp -- "$work/prefix" "$work/match.sed" || return 1
   printf '\\%s%s%s=\n' "$delimiter" "$pattern" "$delimiter" >>"$work/match.sed" || return 1
   if ! sed -E -n -f "$work/match.sed" "$work/input" >"$work/matches"; then
-    lib::log::red 'Could not evaluate the sed pattern.'
+    lib::log::print_error 'Could not evaluate the sed pattern.'
     return 2
   fi
 
   if [[ ! -s $work/matches ]]; then
-    lib::log::red 'The pattern did not match; the file was left unchanged.'
+    lib::log::print_error 'The pattern did not match; the file was left unchanged.'
     return 1
   fi
 
@@ -720,7 +720,7 @@ function __libsh_fs_edit_transform() {
   fi
 
   if ! sed -E -f "$work/edit.sed" "$work/input" >"$work/edited"; then
-    lib::log::red 'Could not apply the sed replacement.'
+    lib::log::print_error 'Could not apply the sed replacement.'
     return 2
   fi
 
@@ -773,14 +773,14 @@ function __libsh_fs_edit() (
   export LC_ALL
 
   if [[ -z $requested || -z $pattern ]]; then
-    lib::log::red 'File editing requires a nonempty path and pattern.'
+    lib::log::print_error 'File editing requires a nonempty path and pattern.'
     return 2
   fi
 
   target=$(__libsh_fs_edit_target "$requested" "${OPTS_VALUES[no_dereference]:-0}") || return 1
   target=${target%.}
   if [[ ! -f $target || ! -r $target ]]; then
-    lib::log::red 'Editing requires a readable regular file.'
+    lib::log::print_error 'Editing requires a readable regular file.'
     return 1
   fi
 
@@ -788,12 +788,12 @@ function __libsh_fs_edit() (
   IFS=' ' read -r device inode links mode uid gid <<<"$identity"
   if [[ ! $device =~ ^[0-9]+$ || ! $inode =~ ^[0-9]+$ || ! $links =~ ^[0-9]+$ ||
     ! $mode =~ ^[0-7]+$ || ! $uid =~ ^[0-9]+$ || ! $gid =~ ^[0-9]+$ ]]; then
-    lib::log::red 'Could not read file identity and ownership.'
+    lib::log::print_error 'Could not read file identity and ownership.'
     return 1
   fi
 
   if [[ $links != 1 ]]; then
-    lib::log::red 'Editing refuses hard-linked files.'
+    lib::log::print_error 'Editing refuses hard-linked files.'
     return 1
   fi
 
@@ -805,7 +805,7 @@ function __libsh_fs_edit() (
   cp -- "$target" "$__libsh_fs_work/original" || return 1
   tr -d '\000' <"$__libsh_fs_work/original" >"$__libsh_fs_work/text" || return 1
   if ! cmp -s "$__libsh_fs_work/original" "$__libsh_fs_work/text"; then
-    lib::log::red 'File editing requires text without NUL bytes.'
+    lib::log::print_error 'File editing requires text without NUL bytes.'
     return 2
   fi
 
@@ -816,7 +816,7 @@ function __libsh_fs_edit() (
   chmod "$mode" "$__libsh_fs_work/result" || return 1
   stage_identity=$(__libsh_fs_edit_identity "$__libsh_fs_work/result") || return 1
   if [[ ${stage_identity#* * * } != "$mode $uid $gid" ]]; then
-    lib::log::red 'Could not preserve file mode and ownership.'
+    lib::log::print_error 'Could not preserve file mode and ownership.'
     return 1
   fi
 
@@ -824,7 +824,7 @@ function __libsh_fs_edit() (
   if [[ ${current%.} != "$target" || -L $target ]] \
     || [[ $(__libsh_fs_edit_identity "$target") != "$identity" ]] \
     || ! cmp -s "$target" "$__libsh_fs_work/original"; then
-    lib::log::red 'The editing target changed; the edit was not committed.'
+    lib::log::print_error 'The editing target changed; the edit was not committed.'
     return 1
   fi
 
@@ -857,7 +857,7 @@ function __libsh_fs_edit() (
 #######################################
 function lib::fs::file_replace_content() {
   if [[ $# -lt 3 ]]; then
-    lib::log::red 'file_replace_content requires FILE PATTERN REPLACEMENT.'
+    lib::log::print_error 'file_replace_content requires FILE PATTERN REPLACEMENT.'
     return 2
   fi
 
@@ -885,7 +885,7 @@ function lib::fs::file_replace_content() {
 #######################################
 function lib::fs::file_replace_content_multiline() {
   if [[ $# -lt 3 ]]; then
-    lib::log::red 'file_replace_content_multiline requires FILE PATTERN REPLACEMENT.'
+    lib::log::print_error 'file_replace_content_multiline requires FILE PATTERN REPLACEMENT.'
     return 2
   fi
 
@@ -911,7 +911,7 @@ function lib::fs::file_replace_content_multiline() {
 #######################################
 function lib::fs::file_remove_content() {
   if [[ $# -lt 2 ]]; then
-    lib::log::red 'file_remove_content requires FILE PATTERN.'
+    lib::log::print_error 'file_remove_content requires FILE PATTERN.'
     return 2
   fi
 
@@ -943,7 +943,7 @@ function lib::fs::file_remove_content() {
 #######################################
 function lib::fs::file_append_content_after_last_match() {
   if [[ $# -lt 3 ]]; then
-    lib::log::red 'file_append_content_after_last_match requires FILE PATTERN CONTENT.'
+    lib::log::print_error 'file_append_content_after_last_match requires FILE PATTERN CONTENT.'
     return 2
   fi
 

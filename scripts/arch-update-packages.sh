@@ -74,22 +74,22 @@ function arch_update_packages::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
   for prerequisite in "${optional[@]}"; do
     if lib::os::is_executable "${prerequisite}"; then
-      lib::log::green "Found optional package '${prerequisite}' in system PATH."
+      lib::log::print_info "Found optional package '${prerequisite}' in system PATH."
     else
-      lib::log::yellow "Optional package '${prerequisite}' is missing: AUR updates need 'yay', and without 'checkupdates' (pacman-contrib) the pending list is read from a possibly stale sync database."
+      lib::log::print_warn "Optional package '${prerequisite}' is missing: AUR updates need 'yay', and without 'checkupdates' (pacman-contrib) the pending list is read from a possibly stale sync database."
     fi
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -143,37 +143,37 @@ function arch_update_packages::exec() {
   fi
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] ${pacman_cmd[*]}"
+    lib::log::print_notice "[dry-run] ${pacman_cmd[*]}"
 
     if [[ $skip_aur != "1" ]]; then
-      lib::log::yellow "[dry-run] ${yay_cmd[*]}"
+      lib::log::print_notice "[dry-run] ${yay_cmd[*]}"
     fi
 
     return 0
   fi
 
-  lib::log::timed_yellow "Updating official packages with 'pacman' ..."
+  lib::log::print_info "Updating official packages with 'pacman' ..."
   lib::os::root_exec "${pacman_cmd[@]}"
 
   if [[ $skip_aur == "1" ]]; then
-    lib::log::timed_green "Finished updating packages; AUR skipped on request."
+    lib::log::print_success "Finished updating packages; AUR skipped on request."
     return 0
   fi
 
   if ! lib::os::is_executable yay; then
-    lib::log::yellow "'yay' is not installed; AUR packages were left alone."
+    lib::log::print_warn "'yay' is not installed; AUR packages were left alone."
     return 0
   fi
 
   if [[ $EUID -eq 0 ]]; then
-    lib::log::yellow "Running as root, so AUR packages were left alone: 'yay' builds packages and refuses to run as root."
+    lib::log::print_warn "Running as root, so AUR packages were left alone: 'yay' builds packages and refuses to run as root."
     return 0
   fi
 
-  lib::log::timed_yellow "Updating AUR packages with 'yay' ..."
+  lib::log::print_info "Updating AUR packages with 'yay' ..."
   "${yay_cmd[@]}"
 
-  lib::log::timed_green "Finished updating official and AUR packages."
+  lib::log::print_success "Finished updating official and AUR packages."
 }
 
 # --------------------------------
@@ -212,24 +212,24 @@ function main() {
   assume_yes="${OPTS_VALUES[assume_yes]:-}"
   dry_run="${OPTS_VALUES[dry_run]:-}"
 
-  lib::log::timed_yellow "Checking for pending updates ..."
+  lib::log::print_info "Checking for pending updates ..."
   pending=$(arch_update_packages::pending)
 
   if [[ -z $pending ]]; then
-    lib::log::timed_green "Every official package is already up to date."
+    lib::log::print_success "Every official package is already up to date."
 
     if [[ $skip_aur == "1" ]]; then
       return 0
     fi
 
-    lib::log::yellow "AUR packages are not covered by this check; 'yay' resolves them during the upgrade."
+    lib::log::print_notice "AUR packages are not covered by this check; 'yay' resolves them during the upgrade."
   else
     count=$(printf '%s\n' "$pending" | wc -l)
-    lib::log::yellow "$count package(s) pending:"
+    lib::log::print_notice "$count package(s) pending:"
     printf '%s\n' "$pending" | head -n 20
 
     if [[ $count -gt 20 ]]; then
-      lib::log::yellow "  ... and $((count - 20)) more."
+      lib::log::print_notice "  ... and $((count - 20)) more."
     fi
 
     if printf '%s\n' "$pending" | grep -qE "$KERNEL_PACKAGES"; then
@@ -241,7 +241,7 @@ function main() {
     # No default, so an unattended run without --yes stops here instead of
     # upgrading a machine nobody was watching.
     if ! ext::ui::confirm "Apply these updates?"; then
-      lib::log::red "Aborted; nothing was upgraded."
+      lib::log::print_error "Aborted; nothing was upgraded."
       return 1
     fi
   fi
@@ -249,7 +249,7 @@ function main() {
   arch_update_packages::exec "$skip_aur" "$assume_yes" "$dry_run"
 
   if [[ -n $kernel && $dry_run != "1" ]]; then
-    lib::log::yellow "The kernel was among the updated packages; reboot to run it."
+    lib::log::print_notice "The kernel was among the updated packages; reboot to run it."
   fi
 }
 

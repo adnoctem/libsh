@@ -77,14 +77,14 @@ function restore_mysql::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -118,7 +118,7 @@ function restore_mysql::exec() {
   fi
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] MYSQL_PWD=**** pv $filename | ${restore_cmd[*]}"
+    lib::log::print_notice "[dry-run] MYSQL_PWD=**** pv $filename | ${restore_cmd[*]}"
     return 0
   fi
 
@@ -126,11 +126,11 @@ function restore_mysql::exec() {
   size=$(numfmt --to=iec-i --suffix=B "$file_size")
   target=${database:-"the database named in the dump"}
 
-  lib::log::timed_yellow "Restoring '$filename' (${size}) into $target on $host ..."
+  lib::log::print_info "Restoring '$filename' (${size}) into $target on $host ..."
 
   pv --size "$file_size" -- "$filename" | "${restore_cmd[@]}"
 
-  lib::log::timed_green "Finished restore of dump: $filename"
+  lib::log::print_success "Finished restore of dump: $filename"
 }
 
 # --------------------------------
@@ -172,7 +172,7 @@ function main() {
   unset 'OPTS_VALUES[password]'
 
   if [[ -n $password && -n $password_file ]]; then
-    lib::log::red "--password and --password-file are mutually exclusive; pass only one of them."
+    lib::log::print_error "--password and --password-file are mutually exclusive; pass only one of them."
     return 1
   fi
 
@@ -185,7 +185,7 @@ function main() {
   unset password
 
   if [[ -z $MYSQL_PWD ]]; then
-    lib::log::red "No password supplied. Use --password-file, --password, or set the MYSQL_PWD environment variable."
+    lib::log::print_error "No password supplied. Use --password-file, --password, or set the MYSQL_PWD environment variable."
     return 1
   fi
 
@@ -208,12 +208,12 @@ function main() {
   # leaves the target half-restored.
   for file in "${dump_files[@]}"; do
     if [[ -z $file ]]; then
-      lib::log::yellow "Skipping an empty file name in --files."
+      lib::log::print_warn "Skipping an empty file name in --files."
       continue
     fi
 
     if [[ ! -f $file || ! -r $file ]]; then
-      lib::log::red "Dump file '$file' does not exist or is not readable."
+      lib::log::print_error "Dump file '$file' does not exist or is not readable."
       return 1
     fi
 
@@ -221,20 +221,20 @@ function main() {
   done
 
   if [[ ${#valid_files[@]} -eq 0 ]]; then
-    lib::log::red "No dump files given in --files."
+    lib::log::print_error "No dump files given in --files."
     return 1
   fi
 
   if [[ $dry_run != "1" && $assume_yes != "1" ]]; then
-    lib::log::yellow "About to restore ${#valid_files[@]} dump file(s) into $host:$port as '$user':"
+    lib::log::print_notice "About to restore ${#valid_files[@]} dump file(s) into $host:$port as '$user':"
     for file in "${valid_files[@]}"; do
-      lib::log::yellow "  - $file"
+      lib::log::print_notice "  - $file"
     done
 
     # No default, so an unattended run without --yes stops here instead of
     # overwriting a live database nobody was watching.
     if ! ext::ui::confirm "This overwrites existing data. Continue?"; then
-      lib::log::red "Aborted; nothing was restored."
+      lib::log::print_error "Aborted; nothing was restored."
       return 1
     fi
   fi

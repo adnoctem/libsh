@@ -72,7 +72,7 @@ function ext::ui::confirm() {
     if [[ $default == "n" ]]; then
       return 1
     fi
-    lib::log::red "'$prompt' needs a TTY to confirm and no default was given; refusing to proceed unattended."
+    lib::log::print_error "'$prompt' needs a TTY to confirm and no default was given; refusing to proceed unattended."
     return 1
   fi
 

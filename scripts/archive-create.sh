@@ -69,15 +69,15 @@ function archive_create::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
-  lib::log::yellow "The 'zstd' and 'xz' compressors are only needed when --compression asks for them."
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_notice "The 'zstd' and 'xz' compressors are only needed when --compression asks for them."
   return 0
 }
 
@@ -134,7 +134,7 @@ function archive_create::exec() {
   esac
 
   if [[ -n $compressor ]] && ! lib::os::is_executable "$compressor"; then
-    lib::log::red "Compression '$compression' needs '$compressor', which is not in the system PATH."
+    lib::log::print_error "Compression '$compression' needs '$compressor', which is not in the system PATH."
     return 1
   fi
 
@@ -166,7 +166,7 @@ function archive_create::exec() {
   )
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] ${tar_cmd[*]} | pv | ${compress_cmd[*]} > $archive"
+    lib::log::print_notice "[dry-run] ${tar_cmd[*]} | pv | ${compress_cmd[*]} > $archive"
     return 0
   fi
 
@@ -179,7 +179,7 @@ function archive_create::exec() {
   fi
 
   size=$(numfmt --to=iec-i --suffix=B "$total")
-  lib::log::timed_yellow "Archiving ${#sources[@]} source(s) (≈$size before compression) into $archive ..."
+  lib::log::print_info "Archiving ${#sources[@]} source(s) (≈$size before compression) into $archive ..."
 
   lib::fs::ensure_existence "$archive"
 
@@ -188,7 +188,7 @@ function archive_create::exec() {
   "${tar_cmd[@]}" | pv --size "$total" | "${compress_cmd[@]}" >"$archive"
 
   size=$(numfmt --to=iec-i --suffix=B "$(wc -c <"$archive")")
-  lib::log::timed_green "Finished archive: $archive ($size)"
+  lib::log::print_success "Finished archive: $archive ($size)"
 }
 
 # --------------------------------
@@ -231,7 +231,7 @@ function main() {
   case "$compression" in
     gzip | zstd | xz | none) ;;
     *)
-      lib::log::red "Invalid compression '$compression'; expected one of gzip, zstd, xz, none."
+      lib::log::print_error "Invalid compression '$compression'; expected one of gzip, zstd, xz, none."
       return 1
       ;;
   esac
@@ -240,12 +240,12 @@ function main() {
 
   for source in "${raw_sources[@]}"; do
     if [[ -z $source ]]; then
-      lib::log::yellow "Skipping an empty path in --sources."
+      lib::log::print_warn "Skipping an empty path in --sources."
       continue
     fi
 
     if [[ ! -e $source ]]; then
-      lib::log::red "Cannot archive '$source': no such file or directory."
+      lib::log::print_error "Cannot archive '$source': no such file or directory."
       return 1
     fi
 
@@ -256,14 +256,14 @@ function main() {
   done
 
   if [[ ${#sources[@]} -eq 0 ]]; then
-    lib::log::red "No sources given in --sources."
+    lib::log::print_error "No sources given in --sources."
     return 1
   fi
 
   name="${OPTS_VALUES[name]:-$(basename -- "${sources[0]}")}"
 
   if [[ $name == */* || -z $name ]]; then
-    lib::log::red "Invalid archive name '$name': it becomes a filename, so it cannot contain '/'."
+    lib::log::print_error "Invalid archive name '$name': it becomes a filename, so it cannot contain '/'."
     return 1
   fi
 

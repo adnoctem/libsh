@@ -1035,16 +1035,69 @@ partial on an operational failure.
 
 [Source](../lib/log.sh)
 
-Terminal helpers append a newline and preserve message text. Color is emitted
-even when redirected. Red helpers write stderr; the others write stdout. Timed
-helpers use the local timezone and require `date` and `sed`. Their return status
-is the final output status, so an earlier timestamp failure is not necessarily
-reported. `write --timestamp` uses UTC and checks timestamp failures explicitly.
+Intent emitters produce `[YYYY-MM-DDTHH:MM:SSZ] INTENT: MESSAGE` followed by one
+newline. They all obtain UTC time from `lib::os::date`. Message text remains
+literal, including percent signs, backslashes, empty strings and embedded
+newlines; the prefix appears once per call. Exactly one message argument is
+accepted, not a printf format or a list of words.
+
+| Intent  | Color  | `print_*` destination |
+| ------- | ------ | --------------------- |
+| INFO    | White  | stdout                |
+| SUCCESS | Green  | stdout                |
+| NOTICE  | Yellow | stdout                |
+| DEBUG   | Cyan   | stderr, when enabled  |
+| WARN    | Yellow | stderr                |
+| ERROR   | Red    | stderr                |
+
+Use info for progress, success for a completed successful outcome, notice for
+significant normal events, warn for recoverable concerns, and error for failures.
+Only the label is colored, and only when the destination is a terminal, `TERM`
+is not `dumb`, and `NO_COLOR` is unset or empty. Redirected intent output and
+`write_*` files receive no added ANSI codes. Applications emitting machine-readable
+stdout should use file logging or redirect progress messages.
+
+`LIBSH_DEBUG=1` or case-insensitive `true` enables debug at call time. Every other
+value, including unset, empty, false and unknown values, disables it. No reload is
+needed. Ordinary variables and one-call assignments work; export for child Bash
+processes. There is no `LIBSH_LOG_LEVEL` alias or severity threshold in this API.
+
+Disabled debug emitters return 0 immediately, before validating arguments, obtaining
+a timestamp, checking terminal color or accessing a file. Invalid disabled calls
+are therefore ignored; active calls validate normally. Bash still expands arguments
+before calling a function: guard expensive command substitutions with `debug_enabled`.
+
+Active intent emitters return 0 on successful output, 1 on timestamp/open/write
+failure and 2 on invalid arguments. Timestamp failure produces no partial record
+and does not create a file. File emitters append to the explicit destination;
+existing symlinks to regular files are followed. Missing parent directories,
+dangling symlinks and nonregular destinations fail. New files use the caller's
+umask. There is no locking, rotation or rollback of partially failed appends.
+Logger backend diagnostics may use plain stderr text to avoid recursively logging
+a logging failure. Intent logging requires `date`, even for ordinary error messages.
 
 ```bash
-lib::log::green 'Configuration ready'
-lib::log::write ./app.log 'Configuration ready' --timestamp
+lib::log::print_info 'Updating configuration'
+lib::log::print_success 'Configuration ready'
+lib::log::write_notice ./app.log 'Restart required'
+LIBSH_DEBUG=true lib::log::print_debug 'Managed block already present'
+
+if lib::log::debug_enabled; then
+  bytes=$(lib::fs::file_size "$config") || exit
+  lib::log::print_debug "Configuration size: $bytes bytes"
+fi
 ```
+
+The raw `print`, `plain` and `write` APIs below remain for unstructured output.
+Raw `print` intentionally emits caller-selected ANSI codes even when redirected;
+raw `write` timestamps only when requested. Neither is debug-gated.
+
+**Migration:** The color convenience functions `red`, `green`, `yellow`, `cyan`,
+`timed` and all `timed_*` helpers have been removed. Select an intent by message
+meaning, rather than translating colors mechanically. For example, use
+`print_success` for completed work and `print_info` for work in progress. WARN now
+uses stderr; NOTICE uses stdout. All intent emitters include a UTC timestamp, so
+consumers that parse old color-only or local-time output must update accordingly.
 
 #### `lib::log::print`
 
@@ -1080,151 +1133,243 @@ Write a message to stdout without any color.
 
 **Returns:** The final output command status.
 
-#### `lib::log::red`
+#### `lib::log::print_info`
 
 ```text
-lib::log::red MESSAGE
+lib::log::print_info MESSAGE
 ```
 
-Write red output to stderr
+Print a timestamped INFO record.
 
-**Arguments:**
+**Arguments:** One message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to stdout; backend errors to stderr.
 
-**Outputs:** Colored message to stderr.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** TERM, NO_COLOR, PATH (read).
 
-#### `lib::log::yellow`
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::print_success`
 
 ```text
-lib::log::yellow MESSAGE
+lib::log::print_success MESSAGE
 ```
 
-Write yellow output to stdout
+Print a timestamped SUCCESS record.
 
-**Arguments:**
+**Arguments:** One message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to stdout; backend errors to stderr.
 
-**Outputs:** Colored message to stdout.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** TERM, NO_COLOR, PATH (read).
 
-#### `lib::log::green`
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::print_notice`
 
 ```text
-lib::log::green MESSAGE
+lib::log::print_notice MESSAGE
 ```
 
-Write green output to stdout
+Print a timestamped NOTICE record.
 
-**Arguments:**
+**Arguments:** One message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to stdout; backend errors to stderr.
 
-**Outputs:** Colored message to stdout.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** TERM, NO_COLOR, PATH (read).
 
-#### `lib::log::cyan`
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::print_debug`
 
 ```text
-lib::log::cyan MESSAGE
+lib::log::print_debug MESSAGE
 ```
 
-Write cyan output to stdout
+Print a timestamped DEBUG record only when debug is enabled.
 
-**Arguments:**
+**Arguments:** One message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to stderr; backend errors to stderr.
 
-**Outputs:** Colored message to stdout.
+**Returns:** 0 success or disabled, 1 timestamp/output failure, 2 invalid arguments when enabled.
 
-**Returns:** The final output command status.
+Disabled calls skip validation and all output work. See the shared logging contract above.
 
-#### `lib::log::timed`
+**Globals:** LIBSH_DEBUG, TERM, NO_COLOR, PATH (read).
+
+**Dependencies:** date only when enabled, through lib::os::date.
+
+#### `lib::log::print_warn`
 
 ```text
-lib::log::timed COLOR MESSAGE
+lib::log::print_warn MESSAGE
 ```
 
-Write a message to stdout in the given color, prefixed with an RFC-3339 timestamp.
+Print a timestamped WARN record.
 
-**Arguments:**
+**Arguments:** One message string, which may be empty.
 
-- 1 - The Bash color code, including its trailing 'm' (e.g. '31m')
+**Outputs:** Record and newline to stderr; backend errors to stderr.
 
-- 2 - The string to log
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Outputs:** The given string, timestamped and colored.
+**Globals:** TERM, NO_COLOR, PATH (read).
 
-**Returns:** The final output command status.
+**Dependencies:** date, through lib::os::date.
 
-#### `lib::log::timed_red`
+#### `lib::log::print_error`
 
 ```text
-lib::log::timed_red MESSAGE
+lib::log::print_error MESSAGE
 ```
 
-Write timestamped red output to stderr
+Print a timestamped ERROR record.
 
-**Arguments:**
+**Arguments:** One message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to stderr; backend errors to stderr.
 
-**Outputs:** Timestamped colored message to stderr.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** TERM, NO_COLOR, PATH (read).
 
-#### `lib::log::timed_yellow`
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::write_info`
 
 ```text
-lib::log::timed_yellow MESSAGE
+lib::log::write_info FILE MESSAGE
 ```
 
-Write timestamped yellow output to stdout
+Append a timestamped INFO record.
 
-**Arguments:**
+**Arguments:** A nonempty file path and one message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to the explicit file, appended without added ANSI codes; backend errors to stderr.
 
-**Outputs:** Timestamped colored message to stdout.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** PATH (read); caller umask governs new files.
 
-#### `lib::log::timed_green`
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::write_success`
 
 ```text
-lib::log::timed_green MESSAGE
+lib::log::write_success FILE MESSAGE
 ```
 
-Write timestamped green output to stdout
+Append a timestamped SUCCESS record.
 
-**Arguments:**
+**Arguments:** A nonempty file path and one message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to the explicit file, appended without added ANSI codes; backend errors to stderr.
 
-**Outputs:** Timestamped colored message to stdout.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** PATH (read); caller umask governs new files.
 
-#### `lib::log::timed_cyan`
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::write_notice`
 
 ```text
-lib::log::timed_cyan MESSAGE
+lib::log::write_notice FILE MESSAGE
 ```
 
-Write timestamped cyan output to stdout
+Append a timestamped NOTICE record.
 
-**Arguments:**
+**Arguments:** A nonempty file path and one message string, which may be empty.
 
-- 1 - Message to log
+**Outputs:** Record and newline to the explicit file, appended without added ANSI codes; backend errors to stderr.
 
-**Outputs:** Timestamped colored message to stdout.
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
 
-**Returns:** The final output command status.
+**Globals:** PATH (read); caller umask governs new files.
+
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::write_debug`
+
+```text
+lib::log::write_debug FILE MESSAGE
+```
+
+Append a timestamped DEBUG record only when debug is enabled.
+
+**Arguments:** A nonempty file path and one message string, which may be empty.
+
+**Outputs:** Record and newline to the explicit file, appended without added ANSI codes; backend errors to stderr.
+
+**Returns:** 0 success or disabled, 1 timestamp/output failure, 2 invalid arguments when enabled.
+
+Disabled calls skip validation and all output work. See the shared logging contract above.
+
+**Globals:** LIBSH_DEBUG, PATH (read); caller umask governs new files.
+
+**Dependencies:** date only when enabled, through lib::os::date.
+
+#### `lib::log::write_warn`
+
+```text
+lib::log::write_warn FILE MESSAGE
+```
+
+Append a timestamped WARN record.
+
+**Arguments:** A nonempty file path and one message string, which may be empty.
+
+**Outputs:** Record and newline to the explicit file, appended without added ANSI codes; backend errors to stderr.
+
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
+
+**Globals:** PATH (read); caller umask governs new files.
+
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::write_error`
+
+```text
+lib::log::write_error FILE MESSAGE
+```
+
+Append a timestamped ERROR record.
+
+**Arguments:** A nonempty file path and one message string, which may be empty.
+
+**Outputs:** Record and newline to the explicit file, appended without added ANSI codes; backend errors to stderr.
+
+**Returns:** 0 success, 1 timestamp/output failure, 2 invalid arguments.
+
+**Globals:** PATH (read); caller umask governs new files.
+
+**Dependencies:** date, through lib::os::date.
+
+#### `lib::log::debug_enabled`
+
+```text
+lib::log::debug_enabled
+```
+
+Check the current debug switch using Bash-only operations. This predicate is useful
+when preparing a message would itself require expensive work.
+
+**Arguments:** None.
+
+**Outputs:** Nothing.
+
+**Returns:** 0 enabled, 1 disabled, 2 unexpected arguments. Use in a conditional
+under errexit; disabled emitters themselves return 0.
+
+**Globals:** LIBSH_DEBUG (read).
 
 #### `lib::log::write`
 
@@ -1806,7 +1951,7 @@ Parse "$@" against the OPTS spec into OPTS_VALUES.
 
 - 1+ - The script's original "$@"
 
-**Outputs:** Nothing on success. Errors to stderr via lib::log::red on failure. On help, prints usage, sets
+**Outputs:** Nothing on success. Errors to stderr via lib::log::print_error on failure. On help, prints usage, sets
 OPTS_VALUES["help"]=1, and returns 0. Library callers should locally declare all three OPTS arrays.
 
 **Returns:** 0 on success. 1 on an unknown flag, a value flag missing its value, or a required flag not supplied
@@ -1866,6 +2011,26 @@ lib::os::user_ensure app --system --group app --home /srv/app
 lib::os::user_update app --append-groups logs
 lib::os::recursive_configure /srv/app --file-mode 640 --dir-mode 750 --user app --group app -n
 ```
+
+#### `lib::os::date`
+
+```text
+lib::os::date
+```
+
+Return the current UTC time at second precision as `YYYY-MM-DDTHH:MM:SSZ`.
+This is the shared logging timestamp API, not a frontend for arbitrary date flags.
+The format is supported on Linux and macOS and is independent of the caller's timezone.
+
+**Arguments:** None.
+
+**Outputs:** Timestamp and newline to stdout; backend errors to stderr.
+
+**Returns:** 0 success, 1 date/output failure, 2 unexpected arguments.
+
+**Globals:** PATH (read).
+
+**Dependencies:** date.
 
 #### `lib::os::config_home`
 

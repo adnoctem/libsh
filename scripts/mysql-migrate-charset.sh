@@ -83,14 +83,14 @@ function mysql_migrate_charset::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -153,10 +153,10 @@ function mysql_migrate_charset::exec() {
   )
 
   total=${#tables[@]}
-  lib::log::timed_yellow "Database '$db_name': $total base table(s) to consider, target $charset${collate_clause}."
+  lib::log::print_info "Database '$db_name': $total base table(s) to consider, target $charset${collate_clause}."
 
   if [[ $views != "0" ]]; then
-    lib::log::yellow "Skipping $views view(s): a view carries the charset of its definition and has to be recreated to change it."
+    lib::log::print_warn "Skipping $views view(s): a view carries the charset of its definition and has to be recreated to change it."
   fi
 
   # The database default only affects objects created from here on, so it
@@ -166,7 +166,7 @@ function mysql_migrate_charset::exec() {
   statement=$(printf 'ALTER DATABASE `%s` CHARACTER SET %s%s;' "${db_name//\`/\`\`}" "$charset" "$collate_clause")
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] $statement"
+    lib::log::print_notice "[dry-run] $statement"
   else
     "${mysql_cmd[@]}" -e "$statement"
   fi
@@ -187,7 +187,7 @@ function mysql_migrate_charset::exec() {
     statement=$(printf 'ALTER TABLE `%s` CONVERT TO CHARACTER SET %s%s;' "$escaped" "$charset" "$collate_clause")
 
     if [[ $dry_run == "1" ]]; then
-      lib::log::yellow "[dry-run] $statement"
+      lib::log::print_notice "[dry-run] $statement"
       converted=$((converted + 1))
       continue
     fi
@@ -195,12 +195,12 @@ function mysql_migrate_charset::exec() {
     # One statement per connection rather than one piped session: an
     # ALTER TABLE rewrites the whole table, so the connection overhead is
     # noise, and a failure names the table it happened on.
-    lib::log::timed_yellow "[$((index + 1))/$total] Converting table '$table' (currently ${table_collation:-unknown}) ..."
+    lib::log::print_info "[$((index + 1))/$total] Converting table '$table' (currently ${table_collation:-unknown}) ..."
     "${mysql_cmd[@]}" -e "$statement"
     converted=$((converted + 1))
   done
 
-  lib::log::timed_green "Finished migration of MySQL database '$db_name' to charset $charset: $converted converted, $skipped already on target."
+  lib::log::print_success "Finished migration of MySQL database '$db_name' to charset $charset: $converted converted, $skipped already on target."
 }
 
 #######################################
@@ -272,7 +272,7 @@ function main() {
   unset 'OPTS_VALUES[password]'
 
   if [[ -n $password && -n $password_file ]]; then
-    lib::log::red "--password and --password-file are mutually exclusive; pass only one of them."
+    lib::log::print_error "--password and --password-file are mutually exclusive; pass only one of them."
     return 1
   fi
 
@@ -285,7 +285,7 @@ function main() {
   unset password
 
   if [[ -z $MYSQL_PWD ]]; then
-    lib::log::red "No password supplied. Use --password-file, --password, or set the MYSQL_PWD environment variable."
+    lib::log::print_error "No password supplied. Use --password-file, --password, or set the MYSQL_PWD environment variable."
     return 1
   fi
 
@@ -307,17 +307,17 @@ function main() {
   # These two are interpolated into SQL unquoted, so they are checked
   # rather than escaped.
   if [[ ! $charset =~ ^[A-Za-z0-9_]+$ ]]; then
-    lib::log::red "Invalid charset '$charset'; expected something like 'utf8mb4'."
+    lib::log::print_error "Invalid charset '$charset'; expected something like 'utf8mb4'."
     return 1
   fi
 
   if [[ -n $collation && ! $collation =~ ^[A-Za-z0-9_]+$ ]]; then
-    lib::log::red "Invalid collation '$collation'; expected something like 'utf8mb4_unicode_ci'."
+    lib::log::print_error "Invalid collation '$collation'; expected something like 'utf8mb4_unicode_ci'."
     return 1
   fi
 
   if [[ -n $collation && $collation != "${charset}_"* ]]; then
-    lib::log::red "Collation '$collation' does not belong to charset '$charset'."
+    lib::log::print_error "Collation '$collation' does not belong to charset '$charset'."
     return 1
   fi
 
@@ -325,7 +325,7 @@ function main() {
 
   for db_name in "${db_names[@]}"; do
     if [[ -z $db_name ]]; then
-      lib::log::yellow "Skipping an empty database name in --databases."
+      lib::log::print_warn "Skipping an empty database name in --databases."
       continue
     fi
 
@@ -333,7 +333,7 @@ function main() {
     # ALTER DATABASE as an identifier; quoting characters have no business
     # in either.
     if [[ $db_name == *'`'* || $db_name == *"'"* || $db_name == *"\\"* ]]; then
-      lib::log::red "Refusing database name '$db_name': quotes and backslashes are not supported."
+      lib::log::print_error "Refusing database name '$db_name': quotes and backslashes are not supported."
       return 1
     fi
 
@@ -341,22 +341,22 @@ function main() {
   done
 
   if [[ ${#valid_names[@]} -eq 0 ]]; then
-    lib::log::red "No database names given in --databases."
+    lib::log::print_error "No database names given in --databases."
     return 1
   fi
 
   if [[ $dry_run != "1" && $assume_yes != "1" ]]; then
-    lib::log::yellow "About to rewrite every table in ${#valid_names[@]} database(s) on $host:$port as '$user':"
+    lib::log::print_notice "About to rewrite every table in ${#valid_names[@]} database(s) on $host:$port as '$user':"
     for db_name in "${valid_names[@]}"; do
-      lib::log::yellow "  - $db_name"
+      lib::log::print_notice "  - $db_name"
     done
-    lib::log::yellow "A charset conversion rewrites table data in place and cannot be rolled back."
-    lib::log::yellow "Take a dump with mysql-backup.sh first if you have not already."
+    lib::log::print_warn "A charset conversion rewrites table data in place and cannot be rolled back."
+    lib::log::print_warn "Take a dump with mysql-backup.sh first if you have not already."
 
     # No default, so an unattended run without --yes stops here instead of
     # rewriting a live database nobody was watching.
     if ! ext::ui::confirm "Continue?"; then
-      lib::log::red "Aborted; nothing was migrated."
+      lib::log::print_error "Aborted; nothing was migrated."
       return 1
     fi
   fi

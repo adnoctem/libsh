@@ -67,15 +67,15 @@ function archive_extract::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
-  lib::log::yellow "The 'zstd', 'xz' and 'bzip2' decompressors are only needed for archives in those formats."
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_notice "The 'zstd', 'xz' and 'bzip2' decompressors are only needed for archives in those formats."
   return 0
 }
 
@@ -116,15 +116,15 @@ function archive_extract::exec() {
 
   if [[ $dry_run == "1" ]]; then
     if [[ ${#decompress_cmd[@]} -eq 0 ]]; then
-      lib::log::yellow "[dry-run] ${tar_cmd[*]} --file $filename"
+      lib::log::print_notice "[dry-run] ${tar_cmd[*]} --file $filename"
     else
-      lib::log::yellow "[dry-run] pv $filename | ${decompress_cmd[*]} | ${tar_cmd[*]}"
+      lib::log::print_notice "[dry-run] pv $filename | ${decompress_cmd[*]} | ${tar_cmd[*]}"
     fi
 
     # 'head' closing the pipe early makes tar exit on SIGPIPE, which
     # pipefail would otherwise turn into a failed dry run.
     listing=$({ tar --list --file "$filename" | head -n 20; } 2>/dev/null || true)
-    lib::log::yellow "[dry-run] first entries of '$filename':"
+    lib::log::print_notice "[dry-run] first entries of '$filename':"
     echo "$listing"
     return 0
   fi
@@ -132,25 +132,25 @@ function archive_extract::exec() {
   file_size=$(wc -c <"$filename")
   size=$(numfmt --to=iec-i --suffix=B "$file_size")
 
-  lib::log::timed_yellow "Extracting '$filename' ($size) into $destination ..."
+  lib::log::print_info "Extracting '$filename' ($size) into $destination ..."
 
   if [[ ${#decompress_cmd[@]} -eq 0 ]]; then
     # Unknown extension: let tar open the archive and work the format out
     # on its own, at the cost of the progress bar.
-    lib::log::yellow "Unrecognised archive extension; extracting without a progress bar."
+    lib::log::print_warn "Unrecognised archive extension; extracting without a progress bar."
     "${tar_cmd[@]}" --file "$filename"
   else
     decompressor="${decompress_cmd[0]}"
 
     if ! lib::os::is_executable "$decompressor"; then
-      lib::log::red "Extracting '$filename' needs '$decompressor', which is not in the system PATH."
+      lib::log::print_error "Extracting '$filename' needs '$decompressor', which is not in the system PATH."
       return 1
     fi
 
     pv --size "$file_size" -- "$filename" | "${decompress_cmd[@]}" | "${tar_cmd[@]}"
   fi
 
-  lib::log::timed_green "Finished extraction of archive: $filename"
+  lib::log::print_success "Finished extraction of archive: $filename"
 }
 
 # --------------------------------
@@ -192,7 +192,7 @@ function main() {
   assume_yes="${OPTS_VALUES[assume_yes]:-}"
 
   if [[ -n $strip && ! $strip =~ ^[0-9]+$ ]]; then
-    lib::log::red "Invalid --strip-components '$strip'; expected a number."
+    lib::log::print_error "Invalid --strip-components '$strip'; expected a number."
     return 1
   fi
 
@@ -202,12 +202,12 @@ function main() {
   # leaves the target half-extracted.
   for file in "${archives[@]}"; do
     if [[ -z $file ]]; then
-      lib::log::yellow "Skipping an empty file name in --files."
+      lib::log::print_warn "Skipping an empty file name in --files."
       continue
     fi
 
     if [[ ! -f $file || ! -r $file ]]; then
-      lib::log::red "Archive '$file' does not exist or is not readable."
+      lib::log::print_error "Archive '$file' does not exist or is not readable."
       return 1
     fi
 
@@ -215,21 +215,21 @@ function main() {
   done
 
   if [[ ${#valid_archives[@]} -eq 0 ]]; then
-    lib::log::red "No archives given in --files."
+    lib::log::print_error "No archives given in --files."
     return 1
   fi
 
   if [[ $dry_run != "1" && $assume_yes != "1" ]]; then
-    lib::log::yellow "About to extract ${#valid_archives[@]} archive(s) into $destination:"
+    lib::log::print_notice "About to extract ${#valid_archives[@]} archive(s) into $destination:"
     for file in "${valid_archives[@]}"; do
-      lib::log::yellow "  - $file"
+      lib::log::print_notice "  - $file"
     done
-    lib::log::yellow "Existing files with the same paths are overwritten without a prompt from tar."
+    lib::log::print_warn "Existing files with the same paths are overwritten without a prompt from tar."
 
     # No default, so an unattended run without --yes stops here instead of
     # overwriting a tree nobody was watching.
     if ! ext::ui::confirm "Continue?"; then
-      lib::log::red "Aborted; nothing was extracted."
+      lib::log::print_error "Aborted; nothing was extracted."
       return 1
     fi
   fi

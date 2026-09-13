@@ -69,14 +69,14 @@ function ubuntu_update_security::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -106,20 +106,20 @@ function ubuntu_update_security::exec() {
   local -a upgrade_cmd=(apt-get -y --only-upgrade install "${packages[@]}")
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] ${upgrade_cmd[*]}"
+    lib::log::print_notice "[dry-run] ${upgrade_cmd[*]}"
     return 0
   fi
 
-  lib::log::timed_yellow "Upgrading ${#packages[@]} package(s) from the security pocket ..."
+  lib::log::print_info "Upgrading ${#packages[@]} package(s) from the security pocket ..."
 
   # DEBIAN_FRONTEND keeps a stray dpkg prompt from hanging an unattended
   # run, which is the point of this script existing separately.
   lib::os::root_exec env DEBIAN_FRONTEND=noninteractive "${upgrade_cmd[@]}"
 
-  lib::log::timed_green "Finished applying security updates."
+  lib::log::print_success "Finished applying security updates."
 
   if ext::apt::reboot_required; then
-    lib::log::yellow "A reboot is required to finish applying these updates (/var/run/reboot-required)."
+    lib::log::print_notice "A reboot is required to finish applying these updates (/var/run/reboot-required)."
   fi
 }
 
@@ -162,9 +162,9 @@ function main() {
   dry_run="${OPTS_VALUES[dry_run]:-}"
 
   if [[ $dry_run == "1" || $skip_refresh == "1" ]]; then
-    lib::log::yellow "Working from the current package lists; they may be stale."
+    lib::log::print_warn "Working from the current package lists; they may be stale."
   else
-    lib::log::timed_yellow "Refreshing package lists ..."
+    lib::log::print_info "Refreshing package lists ..."
     lib::os::root_exec apt-get update
   fi
 
@@ -176,11 +176,11 @@ function main() {
   done < <(printf '%s\n' "$simulation" | ext::apt::security_packages)
 
   if [[ ${#packages[@]} -eq 0 ]]; then
-    lib::log::timed_green "No pending security updates."
+    lib::log::print_success "No pending security updates."
     return 0
   fi
 
-  lib::log::yellow "${#packages[@]} package(s) with security updates pending:"
+  lib::log::print_notice "${#packages[@]} package(s) with security updates pending:"
 
   for package in "${packages[@]}"; do
     lib::log::plain "  - $package"
@@ -190,7 +190,7 @@ function main() {
     # No default, so an unattended run without --yes stops here instead of
     # upgrading a production machine nobody was watching.
     if ! ext::ui::confirm "Apply these security updates?"; then
-      lib::log::red "Aborted; nothing was upgraded."
+      lib::log::print_error "Aborted; nothing was upgraded."
       return 1
     fi
   fi

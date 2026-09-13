@@ -62,15 +62,15 @@ function ubuntu_list_packages::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
-  lib::log::yellow "This script never needs root: it only reads the dpkg database."
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_notice "This script never needs root: it only reads the dpkg database."
   return 0
 }
 
@@ -173,8 +173,8 @@ function main() {
   ubuntu_list_packages::exec "$all" "$with_versions" >"$filename"
 
   count=$(grep -c . "$filename" || true)
-  lib::log::timed_green "Wrote $count package(s) to '$filename'."
-  lib::log::yellow "Install them elsewhere with: ./scripts/ubuntu-install-packages.sh --file $filename"
+  lib::log::print_success "Wrote $count package(s) to '$filename'."
+  lib::log::print_notice "Install them elsewhere with: ./scripts/ubuntu-install-packages.sh --file $filename"
 }
 
 # ------------

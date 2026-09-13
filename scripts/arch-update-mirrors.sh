@@ -75,14 +75,14 @@ function arch_update_mirrors::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -122,18 +122,18 @@ function arch_update_mirrors::exec() {
   # reflector only needs root to write into /etc, so generating into a
   # temporary file first keeps the network query unprivileged -- and gives
   # us something to diff against.
-  lib::log::timed_yellow "Querying mirrors from: $countries ..."
+  lib::log::print_info "Querying mirrors from: $countries ..."
   "${reflector_cmd[@]}"
 
   if [[ ! -s $generated ]]; then
-    lib::log::red "reflector returned no mirrors for '$countries' over $protocol."
+    lib::log::print_error "reflector returned no mirrors for '$countries' over $protocol."
     return 1
   fi
 
-  lib::log::green "reflector returned $(grep -c '^Server' "$generated") mirror(s)."
+  lib::log::print_info "reflector returned $(grep -c '^Server' "$generated") mirror(s)."
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] the mirrorlist below would be written to '$filename':"
+    lib::log::print_notice "[dry-run] the mirrorlist below would be written to '$filename':"
     cat "$generated"
     return 0
   fi
@@ -144,21 +144,21 @@ function arch_update_mirrors::exec() {
     diff -u -- "$filename" "$generated" >/dev/null 2>&1 || rc=$?
 
     if [[ $rc -eq 0 ]]; then
-      lib::log::green "'$filename' is already identical to the generated list; nothing to change."
+      lib::log::print_success "'$filename' is already identical to the generated list; nothing to change."
       return 0
     fi
 
-    lib::log::yellow "Changes to '$filename':"
+    lib::log::print_notice "Changes to '$filename':"
     diff -u -- "$filename" "$generated" || true
   else
-    lib::log::yellow "'$filename' does not exist yet; it will be created."
+    lib::log::print_notice "'$filename' does not exist yet; it will be created."
   fi
 
   if [[ $assume_yes != "1" ]]; then
     # No default, so an unattended run without --yes stops here instead of
     # repointing a machine's mirrors unwatched.
     if ! ext::ui::confirm "Apply this mirrorlist to $filename?"; then
-      lib::log::red "Aborted; '$filename' was left untouched."
+      lib::log::print_error "Aborted; '$filename' was left untouched."
       return 1
     fi
   fi
@@ -166,13 +166,13 @@ function arch_update_mirrors::exec() {
   if [[ -f $filename ]]; then
     backup="${filename}.libsh-$(date '+%d-%m-%Y+%H-%M-%S').bak"
     lib::os::root_exec cp -- "$filename" "$backup"
-    lib::log::green "Backed the original up to '$backup'."
+    lib::log::print_success "Backed the original up to '$backup'."
   fi
 
   lib::os::root_exec cp -- "$generated" "$filename"
 
-  lib::log::timed_green "Wrote a fresh mirrorlist to '$filename'."
-  lib::log::yellow "Run ./scripts/arch-update-packages.sh to refresh the package databases from the new mirrors."
+  lib::log::print_success "Wrote a fresh mirrorlist to '$filename'."
+  lib::log::print_notice "Run ./scripts/arch-update-packages.sh to refresh the package databases from the new mirrors."
 }
 
 # --------------------------------
@@ -216,19 +216,19 @@ function main() {
   # Country names carry spaces and hyphens, but nothing that could turn
   # into another argument.
   if [[ ! $countries =~ ^[A-Za-z][A-Za-z,\ -]*$ ]]; then
-    lib::log::red "Invalid --countries '$countries'; expected names or codes such as 'Germany,Austria'."
+    lib::log::print_error "Invalid --countries '$countries'; expected names or codes such as 'Germany,Austria'."
     return 1
   fi
 
   if [[ ! $latest =~ ^[0-9]+$ || $latest -eq 0 ]]; then
-    lib::log::red "Invalid --latest '$latest'; expected a positive number."
+    lib::log::print_error "Invalid --latest '$latest'; expected a positive number."
     return 1
   fi
 
   case "$protocol" in
     https | http | rsync | ftp) ;;
     *)
-      lib::log::red "Invalid --protocol '$protocol'; expected one of https, http, rsync, ftp."
+      lib::log::print_error "Invalid --protocol '$protocol'; expected one of https, http, rsync, ftp."
       return 1
       ;;
   esac

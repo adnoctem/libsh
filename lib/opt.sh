@@ -90,7 +90,7 @@ function lib::opt::usage() {
 # Arguments:
 #   1+ - The script's original "$@"
 # Outputs:
-#   Nothing on success. Errors to stderr via lib::log::red on failure.
+#   Nothing on success. Errors to stderr via lib::log::print_error on failure.
 #   On help, prints usage, sets OPTS_VALUES["help"]=1, and returns 0.
 #   Library callers should locally declare all three OPTS arrays.
 # Returns:
@@ -120,7 +120,7 @@ function lib::opt::parse() {
 
         if [[ $takes_value == "1" ]]; then
           if [[ $# -lt 2 ]]; then
-            lib::log::red "Option '$1' requires a value."
+            lib::log::print_error "Option '$1' requires a value."
             return 1
           fi
           OPTS_VALUES["$key"]="$2"
@@ -134,7 +134,7 @@ function lib::opt::parse() {
     done
 
     if [[ $matched -eq 0 ]]; then
-      lib::log::red "Unknown option: $1"
+      lib::log::print_error "Unknown option: $1"
       return 1
     fi
   done
@@ -152,7 +152,7 @@ function lib::opt::parse() {
   done
 
   if [[ ${#missing[@]} -gt 0 ]]; then
-    lib::log::red "Missing required option(s): ${missing[*]}"
+    lib::log::print_error "Missing required option(s): ${missing[*]}"
     echo >&2
     lib::opt::usage >&2
     return 1

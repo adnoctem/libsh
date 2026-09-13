@@ -76,14 +76,14 @@ function backup_mysql::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -120,7 +120,7 @@ function backup_mysql::exec() {
   )
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] MYSQL_PWD=**** ${dump_cmd[*]} > $filename"
+    lib::log::print_notice "[dry-run] MYSQL_PWD=**** ${dump_cmd[*]} > $filename"
     return 0
   fi
 
@@ -139,16 +139,16 @@ function backup_mysql::exec() {
 
   # An unknown/empty schema answers 'NULL', which is not a size.
   if [[ ! $db_size =~ ^[0-9]+$ ]]; then
-    lib::log::yellow "Could not determine the size of database '$db_name'; progress will be shown without a total."
+    lib::log::print_warn "Could not determine the size of database '$db_name'; progress will be shown without a total."
     db_size=0
   fi
 
   size=$(numfmt --to=iec-i --suffix=B "$db_size")
-  lib::log::timed_yellow "Dumping database '$db_name' (≈$size) into $filename ..."
+  lib::log::print_info "Dumping database '$db_name' (≈$size) into $filename ..."
 
   "${dump_cmd[@]}" | pv --size "$db_size" >"$filename"
 
-  lib::log::timed_green "Finished backup of MySQL database: $db_name"
+  lib::log::print_success "Finished backup of MySQL database: $db_name"
 }
 
 # --------------------------------
@@ -190,7 +190,7 @@ function main() {
   unset 'OPTS_VALUES[password]'
 
   if [[ -n $password && -n $password_file ]]; then
-    lib::log::red "--password and --password-file are mutually exclusive; pass only one of them."
+    lib::log::print_error "--password and --password-file are mutually exclusive; pass only one of them."
     return 1
   fi
 
@@ -203,7 +203,7 @@ function main() {
   unset password
 
   if [[ -z $MYSQL_PWD ]]; then
-    lib::log::red "No password supplied. Use --password-file, --password, or set the MYSQL_PWD environment variable."
+    lib::log::print_error "No password supplied. Use --password-file, --password, or set the MYSQL_PWD environment variable."
     return 1
   fi
 
@@ -225,7 +225,7 @@ function main() {
 
   for db_name in "${db_names[@]}"; do
     if [[ -z $db_name ]]; then
-      lib::log::yellow "Skipping an empty database name in --databases."
+      lib::log::print_warn "Skipping an empty database name in --databases."
       continue
     fi
 

@@ -55,7 +55,7 @@ Run `make init` first (checks out BATS submodules).
 - Scripts resolve `LIBSH_DIR` (nonempty wins) with a checkout `../lib` fallback,
   fail if the library is missing, and `cd -P` once before sourcing. Never invoke
   `libman` at runtime.
-- Errors via `lib::log::red` (stderr); progress output to stdout.
+- Errors via `lib::log::print_error` (stderr); progress output to stdout.
 - Group related steps into logical paragraphs separated by one blank line; do not add spacing
   between every statement. Short `case` arms are welcome for simple mappings; expand complex arms.
   Follow [the readability and header standard](CONTRIBUTING.md#shell-readability-and-function-comments),

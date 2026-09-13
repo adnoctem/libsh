@@ -375,7 +375,11 @@ review.
 - Update [API.md](API.md) alongside public behavior changes. Every public function needs one reference entry,
   with arguments, output/return behavior, dependencies, side effects and supported platforms. The coverage check
   in `test/lib/libsh.bats` rejects missing, duplicate and stale entries.
-- Write errors with `lib::log::red`, which goes to stderr; progress output goes to stdout
+- Write errors with `lib::log::print_error`, which goes to stderr; progress output goes to stdout
+- Use intent logging: info for progress, success for completed work, notice for normal advisories,
+  warn for recoverable concerns, and error for failures. Debug calls are silent unless
+  `LIBSH_DEBUG=1` or case-insensitive `true`; guard expensive argument preparation with
+  `lib::log::debug_enabled`. Timestamped logging uses `lib::os::date` (UTC).
 
 ### Shell readability and function comments
 

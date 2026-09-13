@@ -323,6 +323,7 @@ install_fake_sleep() {
 
 # lib::net::tcp_dsn_probe
 @test "lib::net::tcp_dsn_probe fails cleanly without trurl on PATH" {
+  ln -s "$(command -v date)" "$TEST_TMP/bin/date"
   PATH="$TEST_TMP/bin" run lib::net::tcp_dsn_probe "mysql://user:pass@127.0.0.1:3306/db" 3306
 
   assert_failure 1

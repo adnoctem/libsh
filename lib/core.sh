@@ -16,7 +16,7 @@
 #######################################
 function lib::core::semver_validate() {
   if [[ $# != 1 ]]; then
-    lib::log::red 'semver_validate requires one version.'
+    lib::log::print_error 'semver_validate requires one version.'
     return 2
   fi
 
@@ -58,7 +58,7 @@ function lib::core::semver_validate() {
 #######################################
 function lib::core::semver_parse() {
   if [[ $# != 2 ]] || ! lib::core::semver_validate "$1"; then
-    lib::log::red 'semver_parse requires a valid complete version and field.'
+    lib::log::print_error 'semver_parse requires a valid complete version and field.'
     return 2
   fi
 
@@ -82,7 +82,7 @@ function lib::core::semver_parse() {
     prerelease) value=$prerelease ;;
     build) value=$build ;;
     *)
-      lib::log::red 'Unknown SemVer field.'
+      lib::log::print_error 'Unknown SemVer field.'
       return 2
       ;;
   esac
@@ -116,7 +116,7 @@ function lib::core::retry() {
     || ! __libsh_core_interval=$(__libsh_data_uint "$1") \
     || ! __libsh_core_attempts=$(__libsh_data_uint "$2") \
     || [[ $__libsh_core_attempts == 0 ]]; then
-    lib::log::red 'retry requires INTERVAL ATTEMPTS -- COMMAND [ARG...].'
+    lib::log::print_error 'retry requires INTERVAL ATTEMPTS -- COMMAND [ARG...].'
     return 2
   fi
 
@@ -131,13 +131,13 @@ function lib::core::retry() {
 
     if ((__libsh_core_interval > 0)); then
       if ! sleep "$__libsh_core_interval"; then
-        lib::log::red 'Retry interval sleep failed.'
+        lib::log::print_error 'Retry interval sleep failed.'
         return 1
       fi
     fi
   done
 
-  lib::log::red 'Command failed on every retry attempt.'
+  lib::log::print_error 'Command failed on every retry attempt.'
   return 1
 }
 
@@ -170,7 +170,7 @@ function __libsh_core_results_read() {
         ! $__libsh_core_id =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.:-]*$ ||
         ! $__libsh_core_status =~ ^(pending|success|failure)$ ||
         ${__libsh_core_seen[$__libsh_core_id]+set} ]]; then
-        lib::log::red 'Invalid result store contents.'
+        lib::log::print_error 'Invalid result store contents.'
         return 2
       fi
       __libsh_core_seen[$__libsh_core_id]=1
@@ -204,7 +204,7 @@ function lib::core::results_add() {
 
   if [[ $# != 3 || ! $__libsh_core_id =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.:-]*$ ||
     ! $__libsh_core_status =~ ^(pending|success|failure)$ ]]; then
-    lib::log::red 'results_add requires STORE ID and pending, success, or failure.'
+    lib::log::print_error 'results_add requires STORE ID and pending, success, or failure.'
     return 2
   fi
 
@@ -240,7 +240,7 @@ function lib::core::results_remove() {
   local __libsh_core_state __libsh_core_line __libsh_core_next=''
 
   if [[ $# != 2 || ! $__libsh_core_id =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.:-]*$ ]]; then
-    lib::log::red 'results_remove requires STORE and a valid operation ID.'
+    lib::log::print_error 'results_remove requires STORE and a valid operation ID.'
     return 2
   fi
 
@@ -274,7 +274,7 @@ function lib::core::results_list() {
   local __libsh_core_state __libsh_core_line __libsh_core_next='' __libsh_core_sorted
 
   if [[ $# -lt 1 || $# -gt 2 || ($# == 2 && ! $2 =~ ^(pending|success|failure)$) ]]; then
-    lib::log::red 'results_list requires STORE and an optional result status.'
+    lib::log::print_error 'results_list requires STORE and an optional result status.'
     return 2
   fi
 
@@ -289,7 +289,7 @@ function lib::core::results_list() {
   [[ -n $__libsh_core_next ]] || return 0
 
   if ! __libsh_core_sorted=$(printf '%s\n' "$__libsh_core_next" | LC_ALL=C sort); then
-    lib::log::red 'Could not sort operation results.'
+    lib::log::print_error 'Could not sort operation results.'
     return 1
   fi
 

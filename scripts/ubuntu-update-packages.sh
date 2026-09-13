@@ -71,14 +71,14 @@ function ubuntu_update_packages::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -99,9 +99,9 @@ function ubuntu_update_packages::plan() {
   local summary
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] skipping 'apt-get update'; simulating against the current package lists."
+    lib::log::print_notice "[dry-run] skipping 'apt-get update'; simulating against the current package lists."
   else
-    lib::log::timed_yellow "Refreshing package lists ..."
+    lib::log::print_info "Refreshing package lists ..."
     lib::os::root_exec apt-get update
   fi
 
@@ -110,11 +110,11 @@ function ubuntu_update_packages::plan() {
   summary=$(ext::apt::simulate "$action" | ext::apt::summary_line || true)
 
   if [[ -z $summary ]]; then
-    lib::log::yellow "Could not read an upgrade summary from apt-get; continuing anyway."
+    lib::log::print_warn "Could not read an upgrade summary from apt-get; continuing anyway."
     return 0
   fi
 
-  lib::log::green "$summary"
+  lib::log::print_info "$summary"
 
   if [[ $summary =~ ^0\ upgraded,\ 0\ newly\ installed ]]; then
     return 1
@@ -140,11 +140,11 @@ function ubuntu_update_packages::exec() {
   local action=${1} autoremove=${2} dry_run=${3}
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] apt-get -s $action"
+    lib::log::print_notice "[dry-run] apt-get -s $action"
     apt-get -s "$action"
 
     if [[ $autoremove == "1" ]]; then
-      lib::log::yellow "[dry-run] apt-get -s autoremove"
+      lib::log::print_notice "[dry-run] apt-get -s autoremove"
       apt-get -s autoremove
     fi
 
@@ -154,19 +154,19 @@ function ubuntu_update_packages::exec() {
   # The operator already confirmed, so apt gets '-y' rather than asking a
   # second time. DEBIAN_FRONTEND keeps a stray dpkg prompt from hanging an
   # unattended run.
-  lib::log::timed_yellow "Running 'apt-get $action' ..."
+  lib::log::print_info "Running 'apt-get $action' ..."
   lib::os::root_exec env DEBIAN_FRONTEND=noninteractive apt-get -y "$action"
 
   if [[ $autoremove == "1" ]]; then
-    lib::log::timed_yellow "Removing packages that are no longer required ..."
+    lib::log::print_info "Removing packages that are no longer required ..."
     lib::os::root_exec env DEBIAN_FRONTEND=noninteractive apt-get -y autoremove
   fi
 
-  lib::log::timed_green "Finished updating packages with 'apt-get $action'."
+  lib::log::print_success "Finished updating packages with 'apt-get $action'."
 
   # Worth surfacing because an unattended fleet upgrade otherwise hides it.
   if ext::apt::reboot_required; then
-    lib::log::yellow "A reboot is required to finish applying these updates (/var/run/reboot-required)."
+    lib::log::print_notice "A reboot is required to finish applying these updates (/var/run/reboot-required)."
   fi
 }
 
@@ -211,19 +211,19 @@ function main() {
   fi
 
   if ! ubuntu_update_packages::plan "$action" "$dry_run"; then
-    lib::log::timed_green "Every package is already up to date; nothing to do."
+    lib::log::print_success "Every package is already up to date; nothing to do."
     return 0
   fi
 
   if [[ $dry_run != "1" && $assume_yes != "1" ]]; then
     if [[ $action == "full-upgrade" ]]; then
-      lib::log::yellow "'full-upgrade' may remove packages to satisfy new dependencies."
+      lib::log::print_warn "'full-upgrade' may remove packages to satisfy new dependencies."
     fi
 
     # No default, so an unattended run without --yes stops here instead of
     # upgrading a production machine nobody was watching.
     if ! ext::ui::confirm "Apply these updates?"; then
-      lib::log::red "Aborted; nothing was upgraded."
+      lib::log::print_error "Aborted; nothing was upgraded."
       return 1
     fi
   fi

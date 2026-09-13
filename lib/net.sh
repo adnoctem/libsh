@@ -25,7 +25,7 @@ function lib::net::tcp_probe() {
     return 0
   fi
 
-  lib::log::red "FATAL: could not reach ${label} (${host}:${port}) after ${tries} tries."
+  lib::log::print_error "FATAL: could not reach ${label} (${host}:${port}) after ${tries} tries."
   exit 1
 }
 
@@ -54,7 +54,7 @@ function lib::net::tcp_dsn_probe() {
   local host port
 
   if ! command -v trurl &>/dev/null; then
-    lib::log::red "lib::net::tcp_dsn_probe requires 'trurl' on PATH to parse DSNs."
+    lib::log::print_error "lib::net::tcp_dsn_probe requires 'trurl' on PATH to parse DSNs."
     exit 1
   fi
 
@@ -201,14 +201,14 @@ function lib::net::endpoint_from_uri() {
   local LC_ALL=C
 
   [[ $# == 3 || ($# == 5 && ${4:-} == --default-port) ]] || {
-    lib::log::red 'Expected URI_VAR HOST_OUT PORT_OUT and optional --default-port.'
+    lib::log::print_error 'Expected URI_VAR HOST_OUT PORT_OUT and optional --default-port.'
     return 2
   }
   __libsh_data_scalar_reference "$1" read || return 2
   __libsh_data_scalar_reference "$2" write || return 2
   __libsh_data_scalar_reference "$3" write || return 2
   [[ $1 != "$2" && $1 != "$3" && $2 != "$3" ]] || {
-    lib::log::red 'Endpoint variable references must be distinct.'
+    lib::log::print_error 'Endpoint variable references must be distinct.'
     return 2
   }
   local __libsh_uri=${!1-} __libsh_uri_default='' __libsh_uri_host __libsh_uri_port=''
@@ -216,13 +216,13 @@ function lib::net::endpoint_from_uri() {
 
   if [[ $# == 5 ]]; then
     __libsh_uri_default=$(__libsh_net_decimal "$5" 65535 1) || {
-      lib::log::red 'Invalid default port.'
+      lib::log::print_error 'Invalid default port.'
       return 2
     }
   fi
 
   if [[ ! $__libsh_uri =~ ^[a-zA-Z][a-zA-Z0-9+.-]*:// || $__libsh_uri == *[[:space:][:cntrl:]]* ]]; then
-    lib::log::red 'Invalid endpoint URI scheme or whitespace.'
+    lib::log::print_error 'Invalid endpoint URI scheme or whitespace.'
     return 2
   fi
 
@@ -234,7 +234,7 @@ function lib::net::endpoint_from_uri() {
   while [[ $__libsh_uri_check == *%* ]]; do
     __libsh_uri_check=${__libsh_uri_check#*%}
     [[ $__libsh_uri_check =~ ^[a-fA-F0-9]{2} ]] || {
-      lib::log::red 'Invalid endpoint URI escape.'
+      lib::log::print_error 'Invalid endpoint URI escape.'
       return 2
     }
     __libsh_uri_check=${__libsh_uri_check:2}
@@ -246,45 +246,45 @@ function lib::net::endpoint_from_uri() {
     # RFC userinfo characters: unreserved, sub-delimiters, colon, escapes.
     __libsh_uri_check="^[a-zA-Z0-9._~!\$&'()*+,;=:%-]+$"
     [[ $__libsh_uri_user =~ $__libsh_uri_check && $__libsh_uri_authority != *@* ]] || {
-      lib::log::red 'Invalid endpoint URI user information.'
+      lib::log::print_error 'Invalid endpoint URI user information.'
       return 2
     }
   fi
 
   if [[ $__libsh_uri_authority == \[* ]]; then
     [[ $__libsh_uri_authority == *\]* ]] || {
-      lib::log::red 'Invalid endpoint brackets.'
+      lib::log::print_error 'Invalid endpoint brackets.'
       return 2
     }
     __libsh_uri_host=${__libsh_uri_authority#\[}
     __libsh_uri_host=${__libsh_uri_host%%\]*}
     __libsh_uri_rest=${__libsh_uri_authority#*\]}
     __libsh_net_endpoint_ipv6 "$__libsh_uri_host" || {
-      lib::log::red 'Invalid IPv6 endpoint.'
+      lib::log::print_error 'Invalid IPv6 endpoint.'
       return 2
     }
   else
     __libsh_uri_host=${__libsh_uri_authority%%:*}
     __libsh_uri_rest=${__libsh_uri_authority#"$__libsh_uri_host"}
     __libsh_net_endpoint_host "$__libsh_uri_host" || {
-      lib::log::red 'Invalid endpoint host.'
+      lib::log::print_error 'Invalid endpoint host.'
       return 2
     }
   fi
 
   if [[ -n $__libsh_uri_rest ]]; then
     [[ $__libsh_uri_rest == :* ]] || {
-      lib::log::red 'Invalid endpoint authority.'
+      lib::log::print_error 'Invalid endpoint authority.'
       return 2
     }
     __libsh_uri_port=$(__libsh_net_decimal "${__libsh_uri_rest#:}" 65535 1) || {
-      lib::log::red 'Invalid explicit endpoint port.'
+      lib::log::print_error 'Invalid explicit endpoint port.'
       return 2
     }
   else
     __libsh_uri_port=$__libsh_uri_default
     [[ -n $__libsh_uri_port ]] || {
-      lib::log::red 'Endpoint requires a port or default port.'
+      lib::log::print_error 'Endpoint requires a port or default port.'
       return 2
     }
   fi
@@ -312,7 +312,7 @@ function lib::net::endpoint_from_uri() {
 #######################################
 function lib::net::tcp_wait() {
   [[ $# -ge 2 ]] || {
-    lib::log::red 'tcp_wait requires HOST and PORT.'
+    lib::log::print_error 'tcp_wait requires HOST and PORT.'
     return 2
   }
   local __libsh_wait_host=$1 __libsh_wait_port __libsh_wait_label="${1}:${2}"
@@ -321,18 +321,18 @@ function lib::net::tcp_wait() {
   local -a __libsh_wait_nc_flags
 
   __libsh_net_endpoint_host "$1" || {
-    lib::log::red 'Invalid TCP host.'
+    lib::log::print_error 'Invalid TCP host.'
     return 2
   }
   __libsh_wait_port=$(__libsh_net_decimal "$2" 65535 1) || {
-    lib::log::red 'Invalid TCP port.'
+    lib::log::print_error 'Invalid TCP port.'
     return 2
   }
   shift 2
 
   while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 && $__libsh_wait_seen != *" $1 "* ]] || {
-      lib::log::red 'Missing or duplicate TCP wait option.'
+      lib::log::print_error 'Missing or duplicate TCP wait option.'
       return 2
     }
     __libsh_wait_seen+="$1 "
@@ -342,7 +342,7 @@ function lib::net::tcp_wait() {
       --interval) __libsh_wait_interval=$2 ;;
       --label) __libsh_wait_label=$2 ;;
       *)
-        lib::log::red 'Unknown TCP wait option.'
+        lib::log::print_error 'Unknown TCP wait option.'
         return 2
         ;;
     esac
@@ -352,19 +352,19 @@ function lib::net::tcp_wait() {
   if ! __libsh_wait_attempts=$(__libsh_net_decimal "$__libsh_wait_attempts" 999999999 1) \
     || ! __libsh_wait_timeout=$(__libsh_net_decimal "$__libsh_wait_timeout" 999999999 1) \
     || ! __libsh_wait_interval=$(__libsh_net_decimal "$__libsh_wait_interval" 999999999 0); then
-    lib::log::red 'Invalid TCP retry budget.'
+    lib::log::print_error 'Invalid TCP retry budget.'
     return 2
   fi
 
   if ! command -v nc >/dev/null 2>&1 || ! command -v sleep >/dev/null 2>&1 || ! command -v uname >/dev/null 2>&1; then
-    lib::log::red "TCP waiting requires OpenBSD-compatible 'nc', 'sleep', and 'uname'."
+    lib::log::print_error "TCP waiting requires OpenBSD-compatible 'nc', 'sleep', and 'uname'."
     return 1
   fi
 
   __libsh_wait_nc_flags=(-z "-w$__libsh_wait_timeout")
   # Apple's -w is the idle timeout; -G bounds TCP connection establishment.
   __libsh_wait_platform=$(uname -s 2>/dev/null) || {
-    lib::log::red 'Could not determine the TCP client platform.'
+    lib::log::print_error 'Could not determine the TCP client platform.'
     return 1
   }
 
@@ -372,21 +372,21 @@ function lib::net::tcp_wait() {
     __libsh_wait_nc_flags+=(-G "$__libsh_wait_timeout")
   fi
 
-  lib::log::green "Checking for an active ${__libsh_wait_label} connection"
+  lib::log::print_info "Checking for an active ${__libsh_wait_label} connection"
 
   while :; do
     if nc "${__libsh_wait_nc_flags[@]}" "$__libsh_wait_host" "$__libsh_wait_port" >/dev/null 2>&1; then
-      lib::log::green "${__libsh_wait_label} connection established"
+      lib::log::print_success "${__libsh_wait_label} connection established"
       return 0
     fi
     if [[ $__libsh_wait_attempt -ge $__libsh_wait_attempts ]]; then
-      lib::log::red "TCP connection unavailable after ${__libsh_wait_attempts} attempts."
+      lib::log::print_error "TCP connection unavailable after ${__libsh_wait_attempts} attempts."
       return 1
     fi
-    lib::log::yellow "Waiting for ${__libsh_wait_label} (${__libsh_wait_host}:${__libsh_wait_port}) -- $((__libsh_wait_attempts - __libsh_wait_attempt)) attempts left"
+    lib::log::print_info "Waiting for ${__libsh_wait_label} (${__libsh_wait_host}:${__libsh_wait_port}) -- $((__libsh_wait_attempts - __libsh_wait_attempt)) attempts left"
     if [[ $__libsh_wait_interval != 0 ]]; then
       sleep "$__libsh_wait_interval" || {
-        lib::log::red 'TCP retry sleep failed.'
+        lib::log::print_error 'TCP retry sleep failed.'
         return 1
       }
     fi
@@ -435,7 +435,7 @@ function lib::net::default_adapter() {
   fi
 
   if [[ -z $iface ]]; then
-    lib::log::red "No default network adapter found."
+    lib::log::print_error "No default network adapter found."
     return 1
   fi
 
@@ -479,7 +479,7 @@ function lib::net::ip_address() {
   fi
 
   if [[ -z $ip ]]; then
-    lib::log::red "No $family address found on adapter '$iface'."
+    lib::log::print_error "No $family address found on adapter '$iface'."
     return 1
   fi
 
@@ -507,7 +507,7 @@ function lib::net::subnet_mask() {
   if [[ $(uname) == "Darwin" ]]; then
     hex=$(ifconfig "$iface" 2>/dev/null | awk '/inet /{print $4; exit}')
     if [[ -z $hex ]]; then
-      lib::log::red "No IPv4 subnet mask found on adapter '$iface'."
+      lib::log::print_error "No IPv4 subnet mask found on adapter '$iface'."
       return 1
     fi
     __libsh_net_hex_mask_to_dotted "$hex"
@@ -517,7 +517,7 @@ function lib::net::subnet_mask() {
   cidr=$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f2 | head -1)
 
   if [[ -z $cidr ]]; then
-    lib::log::red "No IPv4 subnet mask found on adapter '$iface'."
+    lib::log::print_error "No IPv4 subnet mask found on adapter '$iface'."
     return 1
   fi
 
@@ -557,7 +557,7 @@ function lib::net::default_gateway() {
   fi
 
   if [[ -z $gateway ]]; then
-    lib::log::red "No $family default gateway found on adapter '$iface'."
+    lib::log::print_error "No $family default gateway found on adapter '$iface'."
     return 1
   fi
 
@@ -587,7 +587,7 @@ function lib::net::dns_servers() {
   esac
 
   if [[ -z $servers ]]; then
-    lib::log::red "No ${family:-} DNS servers found in /etc/resolv.conf."
+    lib::log::print_error "No ${family:-} DNS servers found in /etc/resolv.conf."
     return 1
   fi
 
@@ -619,7 +619,7 @@ function lib::net::mac_address() {
   fi
 
   if [[ -z $mac ]]; then
-    lib::log::red "No MAC address found on adapter '$iface'."
+    lib::log::print_error "No MAC address found on adapter '$iface'."
     return 1
   fi
 
@@ -875,7 +875,7 @@ function __libsh_net_ipv6_prefix_data() {
   fi
 
   if [[ -z $address || -z $prefix_length ]]; then
-    lib::log::red "No IPv6 address with a valid prefix length found on adapter '$iface'."
+    lib::log::print_error "No IPv6 address with a valid prefix length found on adapter '$iface'."
     return 1
   fi
 
@@ -1397,13 +1397,13 @@ function __libsh_net_uri_parse() {
   case $2 in
     scheme | authority | userinfo | username | password | host | port | path | query | fragment) ;;
     *)
-      lib::log::red 'Unsupported URI component selector.'
+      lib::log::print_error 'Unsupported URI component selector.'
       return 2
       ;;
   esac
 
   if ! __libsh_net_uri_split "$1" "$3"; then
-    lib::log::red 'Invalid or unsupported connection URI.'
+    lib::log::print_error 'Invalid or unsupported connection URI.'
     return 1
   fi
 
@@ -1428,7 +1428,7 @@ function __libsh_net_uri_parse() {
 #######################################
 function lib::net::dns_lookup() {
   if [[ $# != 1 || -z ${1:-} || $1 == -* || $1 == *[[:space:][:cntrl:]]* ]]; then
-    lib::log::red 'dns_lookup requires one hostname.'
+    lib::log::print_error 'dns_lookup requires one hostname.'
     return 2
   fi
 
@@ -1436,17 +1436,17 @@ function lib::net::dns_lookup() {
   if command -v getent >/dev/null 2>&1; then
     backend=getent
     response=$(getent ahosts "$1" 2>/dev/null) || {
-      lib::log::red 'Hostname lookup failed.'
+      lib::log::print_error 'Hostname lookup failed.'
       return 1
     }
   elif command -v nslookup >/dev/null 2>&1; then
     backend=nslookup
     response=$(nslookup "$1" 2>/dev/null) || {
-      lib::log::red 'Hostname lookup failed.'
+      lib::log::print_error 'Hostname lookup failed.'
       return 1
     }
   else
-    lib::log::red 'dns_lookup requires getent or nslookup.'
+    lib::log::print_error 'dns_lookup requires getent or nslookup.'
     return 1
   fi
 
@@ -1474,7 +1474,7 @@ function lib::net::dns_lookup() {
   done <<<"$response"
 
   if [[ -z $output ]]; then
-    lib::log::red 'Hostname lookup returned no IP addresses.'
+    lib::log::print_error 'Hostname lookup returned no IP addresses.'
     return 1
   fi
 
@@ -1517,7 +1517,7 @@ function lib::net::http_probe() {
   lib::opt::parse ${1+"$@"} || return 2
   timeout=$(__libsh_net_decimal "${OPTS_VALUES[timeout]:-10}" 86400 1) || return 2
   if ! __libsh_net_uri_split "$url" http; then
-    lib::log::red 'http_probe requires an HTTP(S) URL with a valid host.'
+    lib::log::print_error 'http_probe requires an HTTP(S) URL with a valid host.'
     return 2
   fi
 
@@ -1526,7 +1526,7 @@ function lib::net::http_probe() {
     http) redirects='=http,https' ;;
     https) redirects='=https' ;;
     *)
-      lib::log::red 'http_probe supports only HTTP and HTTPS.'
+      lib::log::print_error 'http_probe supports only HTTP and HTTPS.'
       return 2
       ;;
   esac
@@ -1535,7 +1535,7 @@ function lib::net::http_probe() {
   fi
 
   if ! command -v curl >/dev/null 2>&1; then
-    lib::log::red 'http_probe requires curl.'
+    lib::log::print_error 'http_probe requires curl.'
     return 3
   fi
 
@@ -1545,12 +1545,12 @@ function lib::net::http_probe() {
     --write-out '%{http_code}' --connect-timeout "$timeout" --max-time "$timeout" \
     --proto '=http,https' --proto-redir "$redirects" --max-redirs 5 \
     ${options[@]+"${options[@]}"} --config - <<<"url = \"$url\"" 2>/dev/null) || {
-    lib::log::red 'HTTP transport failed.'
+    lib::log::print_error 'HTTP transport failed.'
     return 3
   }
 
   if [[ ! $status =~ ^[1-5][0-9][0-9]$ ]]; then
-    lib::log::red 'HTTP transport returned no valid status.'
+    lib::log::print_error 'HTTP transport returned no valid status.'
     return 3
   fi
 

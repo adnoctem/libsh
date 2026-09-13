@@ -1,10 +1,8 @@
 # shellcheck shell=bash
 
-# Log to stdout, optionally with colored text.
-#
-# Red is the exception: it goes to stderr, because an error that only
-# reaches stdout is invisible to cron and CI alerting that watches the
-# error stream. Everything else is progress reporting and stays on stdout.
+# Intent logs use UTC timestamps and readable labels. Info, success and notice
+# go to stdout; debug, warnings and errors go to stderr. Files are always plain
+# text. Raw print/plain/write remain available for unstructured output.
 
 #######################################
 # Write a message to stdout in the given color.
@@ -42,147 +40,291 @@ function lib::log::plain() {
 }
 
 #######################################
-# Write red output to stderr
+# Check whether debug logging is enabled at call time without external commands.
 # Globals:
-#   None
+#   LIBSH_DEBUG (read): 1 or case-insensitive true enables debug.
 # Arguments:
-#   1 - Message to log
+#   None
 # Outputs:
-#   Colored message to stderr.
+#   Nothing.
 # Returns:
-#   The final output command status.
+#   0 enabled, 1 disabled, 2 unexpected arguments.
 #######################################
-function lib::log::red() {
-  lib::log::print "31m" "${1}" >&2
+# shellcheck disable=SC2120 # public predicate rejects unexpected arguments
+function lib::log::debug_enabled() {
+  [[ $# == 0 ]] || return 2
+
+  case ${LIBSH_DEBUG:-} in
+    1 | [tT][rR][uU][eE]) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 #######################################
-# Write yellow output to stdout
+# Emit one timestamped intent record to the selected terminal stream.
+# Prefix once, preserve literal message bytes, and color only the intent label.
 # Globals:
-#   None
+#   TERM, NO_COLOR (read); PATH through lib::os::date.
 # Arguments:
-#   1 - Message to log
+#   1 - Intent label
+#   2 - ANSI foreground color number
+#   3 - Destination descriptor (1 or 2)
+#   4 - Message (exactly one string)
 # Outputs:
-#   Colored message to stdout.
+#   Record and newline to the destination; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
 #######################################
-function lib::log::yellow() {
-  lib::log::print "33m" "${1}"
+function __libsh_log_print() {
+  [[ $# == 4 ]] || return 2
+  local intent=$1 color=$2 destination=$3 message=$4 timestamp
+
+  timestamp=$(lib::os::date) || return 1
+
+  if [[ -t $destination && ${TERM:-} != dumb && -z ${NO_COLOR:-} ]]; then
+    printf '[%s] \033[1;%sm%s\033[0m: %s\n' "$timestamp" "$color" "$intent" "$message" >&"$destination" || return 1
+  else
+    printf '[%s] %s: %s\n' "$timestamp" "$intent" "$message" >&"$destination" || return 1
+  fi
 }
 
 #######################################
-# Write green output to stdout
+# Append one timestamped intent record using the raw file writer.
 # Globals:
-#   None
+#   PATH through lib::os::date; caller umask governs new files.
 # Arguments:
-#   1 - Message to log
+#   1 - Intent label
+#   2 - File path (nonempty)
+#   3 - Message (exactly one string)
 # Outputs:
-#   Colored message to stdout.
+#   Plain-text record and newline to the file; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/open/write failure, 2 invalid arguments.
 #######################################
-function lib::log::green() {
-  lib::log::print "32m" "${1}"
+function __libsh_log_write() {
+  [[ $# == 3 && -n $2 ]] || return 2
+  local intent=$1 file=$2 message=$3 timestamp
+
+  timestamp=$(lib::os::date) || return 1
+  lib::log::write "$file" "[$timestamp] $intent: $message"
 }
 
 #######################################
-# Write cyan output to stdout
+# Print a timestamped INFO record.
 # Globals:
-#   None
+#   TERM, NO_COLOR, PATH (read).
 # Arguments:
-#   1 - Message to log
+#   1 - Message (may be empty or contain embedded newlines)
 # Outputs:
-#   Colored message to stdout.
+#   Record and newline to stdout; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
 #######################################
-function lib::log::cyan() {
-  lib::log::print "36m" "${1}"
+function lib::log::print_info() {
+  __libsh_log_print INFO 37 1 ${1+"$@"}
 }
 
 #######################################
-# Write a message to stdout in the given color, prefixed with an
-# RFC-3339 timestamp.
+# Print a timestamped SUCCESS record.
 # Globals:
-#   None
+#   TERM, NO_COLOR, PATH (read).
 # Arguments:
-#   1 - The Bash color code, including its trailing 'm' (e.g. '31m')
-#   2 - The string to log
+#   1 - Message (may be empty or contain embedded newlines)
 # Outputs:
-#   The given string, timestamped and colored.
+#   Record and newline to stdout; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
 #######################################
-function lib::log::timed() {
-  local color=${1} message=${2:-} time
-
-  # '--rfc-3339' is GNU-only; '%z' (a bare offset with no colon, e.g.
-  # '-0500') is the portable part shared by GNU and BSD/macOS date, so the
-  # colon RFC 3339 requires is inserted afterward instead.
-  time=$(date '+%Y-%m-%d %H:%M:%S%z' | sed -E 's/([0-9]{2})([0-9]{2})$/\1:\2/')
-
-  lib::log::print "$color" "[$time]: $message"
+function lib::log::print_success() {
+  __libsh_log_print SUCCESS 32 1 ${1+"$@"}
 }
 
 #######################################
-# Write timestamped red output to stderr
+# Print a timestamped NOTICE record.
 # Globals:
-#   None
+#   TERM, NO_COLOR, PATH (read).
 # Arguments:
-#   1 - Message to log
+#   1 - Message (may be empty or contain embedded newlines)
 # Outputs:
-#   Timestamped colored message to stderr.
+#   Record and newline to stdout; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
 #######################################
-function lib::log::timed_red() {
-  lib::log::timed "31m" "${1}" >&2
+function lib::log::print_notice() {
+  __libsh_log_print NOTICE 33 1 ${1+"$@"}
 }
 
 #######################################
-# Write timestamped yellow output to stdout
+# Print a timestamped DEBUG record only when debug is enabled.
+# Disabled calls return before argument validation, timestamps or file access.
 # Globals:
-#   None
+#   LIBSH_DEBUG, TERM, NO_COLOR, PATH (read).
 # Arguments:
-#   1 - Message to log
+#   1 - Message (may be empty or contain embedded newlines)
 # Outputs:
-#   Timestamped colored message to stdout.
+#   Record and newline to stderr; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success or disabled, 1 timestamp/output failure, 2 invalid arguments when enabled.
+# Dependencies:
+#   date only when enabled, through lib::os::date.
 #######################################
-function lib::log::timed_yellow() {
-  lib::log::timed "33m" "${1}"
+function lib::log::print_debug() {
+  # shellcheck disable=SC2119 # predicate intentionally receives no arguments
+  lib::log::debug_enabled || return 0
+
+  __libsh_log_print DEBUG 36 2 ${1+"$@"}
 }
 
 #######################################
-# Write timestamped green output to stdout
+# Print a timestamped WARN record.
 # Globals:
-#   None
+#   TERM, NO_COLOR, PATH (read).
 # Arguments:
-#   1 - Message to log
+#   1 - Message (may be empty or contain embedded newlines)
 # Outputs:
-#   Timestamped colored message to stdout.
+#   Record and newline to stderr; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
 #######################################
-function lib::log::timed_green() {
-  lib::log::timed "32m" "${1}"
+function lib::log::print_warn() {
+  __libsh_log_print WARN 33 2 ${1+"$@"}
 }
 
 #######################################
-# Write timestamped cyan output to stdout
+# Print a timestamped ERROR record.
 # Globals:
-#   None
+#   TERM, NO_COLOR, PATH (read).
 # Arguments:
-#   1 - Message to log
+#   1 - Message (may be empty or contain embedded newlines)
 # Outputs:
-#   Timestamped colored message to stdout.
+#   Record and newline to stderr; backend errors to stderr.
 # Returns:
-#   The final output command status.
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
 #######################################
-function lib::log::timed_cyan() {
-  lib::log::timed "36m" "${1}"
+function lib::log::print_error() {
+  __libsh_log_print ERROR 31 2 ${1+"$@"}
+}
+
+#######################################
+# Append a timestamped INFO record.
+# Globals:
+#   PATH (read); caller umask governs new files.
+# Arguments:
+#   1 - File path (nonempty)
+#   2 - Message (may be empty or contain embedded newlines)
+# Outputs:
+#   Record and newline to the named file (append only, no ANSI); backend errors to stderr.
+# Returns:
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
+#######################################
+function lib::log::write_info() {
+  __libsh_log_write INFO ${1+"$@"}
+}
+
+#######################################
+# Append a timestamped SUCCESS record.
+# Globals:
+#   PATH (read); caller umask governs new files.
+# Arguments:
+#   1 - File path (nonempty)
+#   2 - Message (may be empty or contain embedded newlines)
+# Outputs:
+#   Record and newline to the named file (append only, no ANSI); backend errors to stderr.
+# Returns:
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
+#######################################
+function lib::log::write_success() {
+  __libsh_log_write SUCCESS ${1+"$@"}
+}
+
+#######################################
+# Append a timestamped NOTICE record.
+# Globals:
+#   PATH (read); caller umask governs new files.
+# Arguments:
+#   1 - File path (nonempty)
+#   2 - Message (may be empty or contain embedded newlines)
+# Outputs:
+#   Record and newline to the named file (append only, no ANSI); backend errors to stderr.
+# Returns:
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
+#######################################
+function lib::log::write_notice() {
+  __libsh_log_write NOTICE ${1+"$@"}
+}
+
+#######################################
+# Append a timestamped DEBUG record only when debug is enabled.
+# Disabled calls return before argument validation, timestamps or file access.
+# Globals:
+#   LIBSH_DEBUG, PATH (read); caller umask governs new files.
+# Arguments:
+#   1 - File path (nonempty)
+#   2 - Message (may be empty or contain embedded newlines)
+# Outputs:
+#   Record and newline to the named file (append only, no ANSI); backend errors to stderr.
+# Returns:
+#   0 success or disabled, 1 timestamp/output failure, 2 invalid arguments when enabled.
+# Dependencies:
+#   date only when enabled, through lib::os::date.
+#######################################
+function lib::log::write_debug() {
+  # shellcheck disable=SC2119 # predicate intentionally receives no arguments
+  lib::log::debug_enabled || return 0
+
+  __libsh_log_write DEBUG ${1+"$@"}
+}
+
+#######################################
+# Append a timestamped WARN record.
+# Globals:
+#   PATH (read); caller umask governs new files.
+# Arguments:
+#   1 - File path (nonempty)
+#   2 - Message (may be empty or contain embedded newlines)
+# Outputs:
+#   Record and newline to the named file (append only, no ANSI); backend errors to stderr.
+# Returns:
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
+#######################################
+function lib::log::write_warn() {
+  __libsh_log_write WARN ${1+"$@"}
+}
+
+#######################################
+# Append a timestamped ERROR record.
+# Globals:
+#   PATH (read); caller umask governs new files.
+# Arguments:
+#   1 - File path (nonempty)
+#   2 - Message (may be empty or contain embedded newlines)
+# Outputs:
+#   Record and newline to the named file (append only, no ANSI); backend errors to stderr.
+# Returns:
+#   0 success, 1 timestamp/output failure, 2 invalid arguments.
+# Dependencies:
+#   date, through lib::os::date.
+#######################################
+function lib::log::write_error() {
+  __libsh_log_write ERROR ${1+"$@"}
 }
 
 #######################################
@@ -205,20 +347,20 @@ function lib::log::timed_cyan() {
 #######################################
 function lib::log::write() {
   if [[ $# -lt 2 || $# -gt 3 || -z ${1:-} || ($# == 3 && $3 != --timestamp) ]]; then
-    lib::log::red 'write requires FILE MESSAGE and optional --timestamp.'
+    printf '%s\n' 'libsh: write requires FILE MESSAGE and optional --timestamp.' >&2
     return 2
   fi
 
   local file=$1 message=$2 timestamp
 
   if [[ (-e $file || -L $file) && ! -f $file ]]; then
-    lib::log::red 'Log destination must be a regular file or an absent path.'
+    printf '%s\n' 'libsh: Log destination must be a regular file or an absent path.' >&2
     return 1
   fi
 
   if [[ $# == 3 ]]; then
-    if ! timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ'); then
-      lib::log::red 'Could not obtain the log timestamp.'
+    if ! timestamp=$(lib::os::date); then
+      printf '%s\n' 'libsh: Could not obtain the log timestamp.' >&2
       return 1
     fi
 
@@ -226,7 +368,7 @@ function lib::log::write() {
   fi
 
   if ! printf '%s\n' "$message" >>"$file"; then
-    lib::log::red 'Could not append the log entry.'
+    printf '%s\n' 'libsh: Could not append the log entry.' >&2
     return 1
   fi
 }

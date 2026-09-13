@@ -76,18 +76,18 @@ function ext::shell::history_scrub() {
   fi
 
   if [[ ${#secret} -lt 8 ]]; then
-    lib::log::yellow "Secret is short (${#secret} chars); history lines that merely contain it will be removed too."
+    lib::log::print_warn "Secret is short (${#secret} chars); history lines that merely contain it will be removed too."
   fi
 
   file=$(ext::shell::history_file)
 
   if [[ ! -f $file ]]; then
-    lib::log::yellow "No shell history file at '$file'; nothing to scrub."
+    lib::log::print_notice "No shell history file at '$file'; nothing to scrub."
     return 0
   fi
 
   if [[ ! -w $file ]]; then
-    lib::log::red "Shell history file '$file' is not writable; left it untouched."
+    lib::log::print_error "Shell history file '$file' is not writable; left it untouched."
     return 1
   fi
 
@@ -102,7 +102,7 @@ function ext::shell::history_scrub() {
 
   if ((rc > 1)); then
     rm -f "$tmp"
-    lib::log::red "Could not filter '$file'; left it untouched."
+    lib::log::print_error "Could not filter '$file'; left it untouched."
     return 1
   fi
 
@@ -110,7 +110,7 @@ function ext::shell::history_scrub() {
   after=$(wc -l <"$tmp")
   mv "$tmp" "$file"
 
-  lib::log::green "Removed $((before - after)) line(s) containing the secret from '$file'."
-  lib::log::yellow "This shell's own history list is out of reach: run 'history -c' (bash) or 'fc -p' (zsh), or start a new session."
+  lib::log::print_success "Removed $((before - after)) line(s) containing the secret from '$file'."
+  lib::log::print_warn "This shell's own history list is out of reach: run 'history -c' (bash) or 'fc -p' (zsh), or start a new session."
   return 0
 }

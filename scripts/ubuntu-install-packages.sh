@@ -76,14 +76,14 @@ function ubuntu_install_packages::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -136,15 +136,15 @@ function ubuntu_install_packages::exec() {
   local -a install_cmd=(apt-get -y install "${packages[@]}")
 
   if [[ $dry_run == "1" ]]; then
-    lib::log::yellow "[dry-run] ${install_cmd[*]}"
+    lib::log::print_notice "[dry-run] ${install_cmd[*]}"
     return 0
   fi
 
-  lib::log::timed_yellow "Installing ${#packages[@]} package(s) ..."
+  lib::log::print_info "Installing ${#packages[@]} package(s) ..."
 
   lib::os::root_exec env DEBIAN_FRONTEND=noninteractive "${install_cmd[@]}"
 
-  lib::log::timed_green "Finished installing ${#packages[@]} package(s)."
+  lib::log::print_success "Finished installing ${#packages[@]} package(s)."
 }
 
 # --------------------------------
@@ -190,7 +190,7 @@ function main() {
 
   # Neither flag can be 'required' on its own, so the pair is checked here.
   if [[ -z ${OPTS_VALUES[packages]:-} && -z $filename ]]; then
-    lib::log::red "Nothing to install: pass --packages, --file, or both."
+    lib::log::print_error "Nothing to install: pass --packages, --file, or both."
     return 1
   fi
 
@@ -200,7 +200,7 @@ function main() {
 
   if [[ -n $filename ]]; then
     if [[ ! -r $filename ]]; then
-      lib::log::red "Manifest '$filename' does not exist or is not readable."
+      lib::log::print_error "Manifest '$filename' does not exist or is not readable."
       return 1
     fi
 
@@ -210,7 +210,7 @@ function main() {
   fi
 
   if [[ ${#requested[@]} -eq 0 ]]; then
-    lib::log::red "No package names were given."
+    lib::log::print_error "No package names were given."
     return 1
   fi
 
@@ -222,7 +222,7 @@ function main() {
     # The names reach apt as arguments, so anything that is not a package
     # name is refused rather than passed along.
     if [[ ! $package =~ $PACKAGE_PATTERN ]]; then
-      lib::log::red "Refusing '$package': that is not a valid package name."
+      lib::log::print_error "Refusing '$package': that is not a valid package name."
       return 1
     fi
 
@@ -238,23 +238,23 @@ function main() {
     missing+=("$package")
   done
 
-  lib::log::green "$present of ${#requested[@]} requested package(s) already installed."
+  lib::log::print_info "$present of ${#requested[@]} requested package(s) already installed."
 
   if [[ ${#missing[@]} -eq 0 ]]; then
-    lib::log::timed_green "Nothing to do."
+    lib::log::print_success "Nothing to do."
     return 0
   fi
 
-  lib::log::yellow "${#missing[@]} package(s) to install:"
+  lib::log::print_notice "${#missing[@]} package(s) to install:"
 
   for package in "${missing[@]}"; do
     lib::log::plain "  - $package"
   done
 
   if [[ $dry_run == "1" || $skip_refresh == "1" ]]; then
-    lib::log::yellow "Working from the current package lists; they may be stale."
+    lib::log::print_warn "Working from the current package lists; they may be stale."
   else
-    lib::log::timed_yellow "Refreshing package lists ..."
+    lib::log::print_info "Refreshing package lists ..."
     lib::os::root_exec apt-get update
   fi
 
@@ -262,7 +262,7 @@ function main() {
     # No default, so an unattended run without --yes stops here instead of
     # installing onto a machine nobody was watching.
     if ! ext::ui::confirm "Install these packages?"; then
-      lib::log::red "Aborted; nothing was installed."
+      lib::log::print_error "Aborted; nothing was installed."
       return 1
     fi
   fi

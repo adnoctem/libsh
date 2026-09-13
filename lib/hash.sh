@@ -27,7 +27,7 @@ function __libsh_hash_digest() {
     elif command -v md5 >/dev/null 2>&1; then
       backend=(md5 -q)
     else
-      lib::log::red 'MD5 hashing requires md5sum or md5.'
+      lib::log::print_error 'MD5 hashing requires md5sum or md5.'
       return 1
     fi
   else
@@ -38,7 +38,7 @@ function __libsh_hash_digest() {
     elif command -v shasum >/dev/null 2>&1; then
       backend=(shasum -a "$algorithm")
     else
-      lib::log::red 'SHA hashing requires the corresponding sha*sum command or shasum.'
+      lib::log::print_error 'SHA hashing requires the corresponding sha*sum command or shasum.'
       return 1
     fi
   fi
@@ -47,13 +47,13 @@ function __libsh_hash_digest() {
     set -o pipefail
     printf '%s' "$value" | "${backend[@]}"
   ); then
-    lib::log::red 'Hash command failed.'
+    lib::log::print_error 'Hash command failed.'
     return 1
   fi
 
   digest=${output%%[[:space:]]*}
   if [[ ${#digest} != "$length" || ! $digest =~ ^[0-9a-f]+$ ]]; then
-    lib::log::red 'Hash command returned an invalid digest.'
+    lib::log::print_error 'Hash command returned an invalid digest.'
     return 1
   fi
 
@@ -75,7 +75,7 @@ function __libsh_hash_digest() {
 #######################################
 function lib::hash::string_md5() {
   if [[ $# != 1 ]]; then
-    lib::log::red 'string_md5 requires one string.'
+    lib::log::print_error 'string_md5 requires one string.'
     return 2
   fi
 
@@ -98,7 +98,7 @@ function lib::hash::string_md5() {
 #######################################
 function lib::hash::string_sha() {
   if [[ $# -lt 1 || $# -gt 2 || ! ${2-256} =~ ^(224|256|384|512)$ ]]; then
-    lib::log::red 'string_sha requires STRING and an optional SHA-2 algorithm (224, 256, 384, 512).'
+    lib::log::print_error 'string_sha requires STRING and an optional SHA-2 algorithm (224, 256, 384, 512).'
     return 2
   fi
 

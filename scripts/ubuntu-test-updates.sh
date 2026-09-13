@@ -61,15 +61,15 @@ function ubuntu_test_updates::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
-  lib::log::yellow "This script never needs root: it only simulates, and 'apt-get -s' is unprivileged."
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_notice "This script never needs root: it only simulates, and 'apt-get -s' is unprivileged."
   return 0
 }
 
@@ -117,13 +117,13 @@ function main() {
   case "$fail_on" in
     any | security | reboot | never) ;;
     *)
-      lib::log::red "Invalid --fail-on '$fail_on'; expected one of any, security, reboot, never."
+      lib::log::print_error "Invalid --fail-on '$fail_on'; expected one of any, security, reboot, never."
       return 2
       ;;
   esac
 
   if [[ ! $max_list_age =~ ^[0-9]+$ ]]; then
-    lib::log::red "Invalid --max-list-age '$max_list_age'; expected a number of days."
+    lib::log::print_error "Invalid --max-list-age '$max_list_age'; expected a number of days."
     return 2
   fi
 
@@ -135,33 +135,33 @@ function main() {
   age=$(ext::apt::lists_age_days || true)
 
   if [[ $age == "-1" ]]; then
-    lib::log::yellow "Could not determine when the package lists were last refreshed."
+    lib::log::print_warn "Could not determine when the package lists were last refreshed."
   elif [[ $age -gt $max_list_age ]]; then
-    lib::log::yellow "Package lists are $age day(s) old (limit: $max_list_age); the counts below may understate reality."
+    lib::log::print_warn "Package lists are $age day(s) old (limit: $max_list_age); the counts below may understate reality."
   else
-    lib::log::green "Package lists are $age day(s) old."
+    lib::log::print_info "Package lists are $age day(s) old."
   fi
 
   if [[ $total -eq 0 ]]; then
-    lib::log::green "No pending updates."
+    lib::log::print_success "No pending updates."
   else
-    lib::log::yellow "$total pending update(s), $security of them from a security pocket."
+    lib::log::print_notice "$total pending update(s), $security of them from a security pocket."
 
     if [[ -n $summary ]]; then
       lib::log::plain "  $summary"
     fi
 
     if [[ $security -gt 0 ]]; then
-      lib::log::yellow "Security updates pending:"
+      lib::log::print_notice "Security updates pending:"
       printf '%s\n' "$simulation" | ext::apt::security_packages | sed 's/^/  - /'
     fi
   fi
 
   if ext::apt::reboot_required; then
     reboot="1"
-    lib::log::yellow "A reboot is required to finish applying earlier updates."
+    lib::log::print_notice "A reboot is required to finish applying earlier updates."
   else
-    lib::log::green "No reboot required."
+    lib::log::print_success "No reboot required."
   fi
 
   case "$fail_on" in

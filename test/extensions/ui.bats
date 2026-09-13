@@ -17,7 +17,7 @@ setup() {
   cat >"$TEST_TMP/confirm.sh" <<-HELPER
 		#!/usr/bin/env bash
 		cd "$REPO_ROOT" || exit 1
-		. lib/log.sh
+		. lib/lib.sh
 		. extensions/libui.sh
 		if ext::ui::confirm 'Proceed?'; then echo CONFIRMED; else echo DECLINED; fi
 	HELPER

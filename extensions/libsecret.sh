@@ -22,12 +22,12 @@ function ext::secret::from_file() {
   local path=${1} mode secret
 
   if [[ ! -f $path ]]; then
-    lib::log::red "Secret file '$path' does not exist."
+    lib::log::print_error "Secret file '$path' does not exist."
     return 1
   fi
 
   if [[ ! -r $path ]]; then
-    lib::log::red "Secret file '$path' is not readable."
+    lib::log::print_error "Secret file '$path' is not readable."
     return 1
   fi
 
@@ -37,13 +37,13 @@ function ext::secret::from_file() {
   mode=$(stat -c '%a' "$path" 2>/dev/null || stat -f '%Lp' "$path" 2>/dev/null || true)
 
   if [[ -n $mode && ! $mode =~ ^[0-7]?[0-7]00$ ]]; then
-    lib::log::yellow "Secret file '$path' is mode $mode; 600 is recommended." >&2
+    lib::log::print_warn "Secret file '$path' is mode $mode; 600 is recommended."
   fi
 
   IFS= read -r secret <"$path" || true
 
   if [[ -z $secret ]]; then
-    lib::log::red "Secret file '$path' is empty."
+    lib::log::print_error "Secret file '$path' is empty."
     return 1
   fi
 
@@ -65,7 +65,7 @@ function ext::secret::from_file() {
 #######################################
 function ext::secret::read_file() {
   [[ $# -ge 2 ]] || {
-    lib::log::red 'read_file requires OUT and PATH.'
+    lib::log::print_error 'read_file requires OUT and PATH.'
     return 2
   }
   __libsh_data_scalar_reference "$1" write || return 2
@@ -78,7 +78,7 @@ function ext::secret::read_file() {
     case $1 in
       --mode)
         [[ $# -ge 2 && $__libsh_read_seen == 0 && ($2 == text || $2 == first-line) ]] || {
-          lib::log::red 'Invalid or duplicate secret read mode.'
+          lib::log::print_error 'Invalid or duplicate secret read mode.'
           return 2
         }
         __libsh_read_mode=$2 __libsh_read_seen=1
@@ -86,14 +86,14 @@ function ext::secret::read_file() {
         ;;
       --allow-empty)
         [[ $__libsh_read_empty == 0 ]] || {
-          lib::log::red 'Duplicate empty-value policy.'
+          lib::log::print_error 'Duplicate empty-value policy.'
           return 2
         }
         __libsh_read_empty=1
         shift
         ;;
       *)
-        lib::log::red 'Unknown secret read option.'
+        lib::log::print_error 'Unknown secret read option.'
         return 2
         ;;
     esac
@@ -122,12 +122,12 @@ function __libsh_ext_secret_read_text() {
   local -a __libsh_bytes_row=()
 
   if [[ ! -f $2 || ! -r $2 ]]; then
-    lib::log::red 'Secret input must be a readable regular file.'
+    lib::log::print_error 'Secret input must be a readable regular file.'
     return 1
   fi
 
   command -v od >/dev/null 2>&1 || {
-    lib::log::red "Secret reading requires 'od'."
+    lib::log::print_error "Secret reading requires 'od'."
     return 1
   }
 
@@ -135,7 +135,7 @@ function __libsh_ext_secret_read_text() {
   # newlines are disposable; the original bytes (including NUL) are preserved.
   # Redirection opens the selected inode once, including projected symlinks.
   if ! __libsh_bytes_dump=$({ LC_ALL=C od -An -v -t o1 <"$2"; } 2>/dev/null); then
-    lib::log::red 'Failed to read secret input.'
+    lib::log::print_error 'Failed to read secret input.'
     return 1
   fi
 
@@ -143,7 +143,7 @@ function __libsh_ext_secret_read_text() {
     IFS=' ' read -r -a __libsh_bytes_row <<<"$__libsh_bytes_line"
     for __libsh_bytes_byte in ${__libsh_bytes_row[@]+"${__libsh_bytes_row[@]}"}; do
       if [[ ! $__libsh_bytes_byte =~ ^[0-3][0-7][0-7]$ || $__libsh_bytes_byte == 000 ]]; then
-        lib::log::red 'Secret input contains NUL or invalid byte data.'
+        lib::log::print_error 'Secret input contains NUL or invalid byte data.'
         return 2
       fi
       if [[ $3 == first-line && $__libsh_bytes_byte == 012 ]]; then
@@ -156,7 +156,7 @@ function __libsh_ext_secret_read_text() {
   done <<<"$__libsh_bytes_dump"
 
   if [[ -z $__libsh_bytes_escape && $4 != 1 ]]; then
-    lib::log::red 'Selected secret value is empty.'
+    lib::log::print_error 'Selected secret value is empty.'
     return 2
   fi
 
@@ -178,7 +178,7 @@ function __libsh_ext_secret_read_text() {
 #######################################
 function ext::secret::resolve() {
   [[ $# -ge 1 ]] || {
-    lib::log::red 'resolve requires an output variable.'
+    lib::log::print_error 'resolve requires an output variable.'
     return 2
   }
   __libsh_data_scalar_reference "$1" write || return 2
@@ -190,7 +190,7 @@ function ext::secret::resolve() {
 
   while [[ $# -gt 0 ]]; do
     if [[ $__libsh_res_seen == *" $1 "* ]]; then
-      lib::log::red 'Duplicate resolver option.'
+      lib::log::print_error 'Duplicate resolver option.'
       return 2
     fi
     __libsh_res_seen+="$1 "
@@ -201,7 +201,7 @@ function ext::secret::resolve() {
         ;;
       --value-var | --file-var | --mode | --precedence)
         [[ $# -ge 2 ]] || {
-          lib::log::red 'Missing resolver option argument.'
+          lib::log::print_error 'Missing resolver option argument.'
           return 2
         }
         case $1 in
@@ -213,7 +213,7 @@ function ext::secret::resolve() {
         shift 2
         ;;
       *)
-        lib::log::red 'Unknown resolver option.'
+        lib::log::print_error 'Unknown resolver option.'
         return 2
         ;;
     esac
@@ -225,7 +225,7 @@ function ext::secret::resolve() {
   if [[ $__libsh_res_out == "$__libsh_res_file" ||
     ($__libsh_res_mode != text && $__libsh_res_mode != first-line) ||
     ($__libsh_res_precedence != presence && $__libsh_res_precedence != nonempty) ]]; then
-    lib::log::red 'Invalid resolver policy or aliased file reference.'
+    lib::log::print_error 'Invalid resolver policy or aliased file reference.'
     return 2
   fi
 
@@ -239,7 +239,7 @@ function ext::secret::resolve() {
 
   if [[ $__libsh_res_has == 0 && ${!__libsh_res_file+x} ]]; then
     [[ -n ${!__libsh_res_file} ]] || {
-      lib::log::red 'Selected secret file path is empty.'
+      lib::log::print_error 'Selected secret file path is empty.'
       return 2
     }
     __libsh_ext_secret_read_text __libsh_res_selected "${!__libsh_res_file}" "$__libsh_res_mode" "$__libsh_res_empty" || return $?
@@ -252,7 +252,7 @@ function ext::secret::resolve() {
   fi
 
   if [[ -z $__libsh_res_selected && $__libsh_res_empty == 0 ]]; then
-    lib::log::red 'Selected secret value is empty.'
+    lib::log::print_error 'Selected secret value is empty.'
     return 2
   fi
 

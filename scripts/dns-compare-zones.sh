@@ -64,14 +64,14 @@ function dns_compare_zones::prerequisites() {
 
   for prerequisite in "${prerequisites[@]}"; do
     if ! lib::os::is_executable "${prerequisite}"; then
-      lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
+      lib::log::print_error "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
 
-    lib::log::green "Found package '${prerequisite}' in system PATH."
+    lib::log::print_info "Found package '${prerequisite}' in system PATH."
   done
 
-  lib::log::green "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
+  lib::log::print_success "Found all prerequisites: '${prerequisites[*]}' in system PATH. Ready to proceed!"
   return 0
 }
 
@@ -94,24 +94,24 @@ function dns_compare_zones::exec() {
   local answer_a answer_b
 
   if ! answer_a=$(dig +short "$type" "@${nameserver_a}" "$zone" 2>/dev/null | sort); then
-    lib::log::red "Querying $type for '$zone' from '$nameserver_a' failed."
+    lib::log::print_error "Querying $type for '$zone' from '$nameserver_a' failed."
     return 2
   fi
 
   if ! answer_b=$(dig +short "$type" "@${nameserver_b}" "$zone" 2>/dev/null | sort); then
-    lib::log::red "Querying $type for '$zone' from '$nameserver_b' failed."
+    lib::log::print_error "Querying $type for '$zone' from '$nameserver_b' failed."
     return 2
   fi
 
   if [[ $answer_a == "$answer_b" ]]; then
-    lib::log::green "$type matches across '$nameserver_a' and '$nameserver_b'."
+    lib::log::print_success "$type matches across '$nameserver_a' and '$nameserver_b'."
     return 0
   fi
 
-  lib::log::yellow "$type differs across nameservers, please examine the values:"
-  lib::log::cyan "  $nameserver_a:"
+  lib::log::print_warn "$type differs across nameservers, please examine the values:"
+  lib::log::print_info "  $nameserver_a:"
   lib::log::plain "${answer_a:-    (empty)}"
-  lib::log::cyan "  $nameserver_b:"
+  lib::log::print_info "  $nameserver_b:"
   lib::log::plain "${answer_b:-    (empty)}"
 
   return 1
@@ -160,11 +160,11 @@ function main() {
   IFS=',' read -ra warn_types <<<"${OPTS_VALUES[warn_types]:-NS,SOA}"
 
   if [[ ${#nameservers[@]} -ne 2 ]]; then
-    lib::log::red "Expected exactly two --nameservers, got ${#nameservers[@]}."
+    lib::log::print_error "Expected exactly two --nameservers, got ${#nameservers[@]}."
     return 1
   fi
 
-  lib::log::timed_yellow "Comparing zone '$zone' across '${nameservers[0]}' and '${nameservers[1]}' ..."
+  lib::log::print_info "Comparing zone '$zone' across '${nameservers[0]}' and '${nameservers[1]}' ..."
 
   for type in "${types[@]}"; do
     if [[ -z $type ]]; then
@@ -190,7 +190,7 @@ function main() {
     fi
   done
 
-  lib::log::timed_cyan "Compared $queries record type(s) for '$zone': $failures error(s), $warnings warning(s)."
+  lib::log::print_info "Compared $queries record type(s) for '$zone': $failures error(s), $warnings warning(s)."
 
   # A non-zero exit makes this usable as a monitoring or CI check.
   if [[ $failures -gt 0 ]]; then

@@ -37,7 +37,7 @@ function lib::data::array_is_empty() {
 #######################################
 function lib::data::array_contains() {
   if [[ $# == 0 ]]; then
-    lib::log::red 'array_contains requires a needle.'
+    lib::log::print_error 'array_contains requires a needle.'
     return 2
   fi
 
@@ -69,7 +69,7 @@ function __libsh_data_scalar_reference() {
   local __libsh_ref_decl __libsh_ref_flags
 
   if [[ ! ${1:-} =~ ^[a-zA-Z_][a-zA-Z_0-9]*$ ]]; then
-    lib::log::red 'Expected an ordinary scalar variable name.'
+    lib::log::print_error 'Expected an ordinary scalar variable name.'
     return 2
   fi
 
@@ -81,7 +81,7 @@ function __libsh_data_scalar_reference() {
       PWD | OLDPWD | RANDOM | SRANDOM | SECONDS | EPOCH* | LINENO | PIPESTATUS | \
       SHLVL | REPLY | PROMPT_COMMAND | PROMPT_DIRTRIM | PS[0-4] | TIMEFORMAT | TMOUT | \
       MAIL | MAILCHECK | MAILPATH | GLOBSORT | COPROC | MAPFILE | _)
-      lib::log::red 'Reserved variable reference.'
+      lib::log::print_error 'Reserved variable reference.'
       return 2
       ;;
   esac
@@ -91,7 +91,7 @@ function __libsh_data_scalar_reference() {
     __libsh_ref_flags=${__libsh_ref_flags%% *}
     if [[ $__libsh_ref_flags == *[aAinlu]* ||
       (${2:-write} == write && $__libsh_ref_flags == *r*) ]]; then
-      lib::log::red 'Variable must be an ordinary, non-transforming scalar (writable for output).'
+      lib::log::print_error 'Variable must be an ordinary, non-transforming scalar (writable for output).'
       return 2
     fi
   fi
@@ -171,12 +171,12 @@ function lib::data::bytes_from() {
 
   if [[ $# != 2 ]] || ! amount=$(__libsh_data_uint "$1") \
     || ! factor=$(__libsh_data_byte_factor "$2"); then
-    lib::log::red 'bytes_from requires a whole nonnegative amount and a supported byte unit.'
+    lib::log::print_error 'bytes_from requires a whole nonnegative amount and a supported byte unit.'
     return 2
   fi
 
   if ((amount > 9223372036854775807 / factor)); then
-    lib::log::red 'Byte value exceeds the signed 64-bit range.'
+    lib::log::print_error 'Byte value exceeds the signed 64-bit range.'
     return 2
   fi
 
@@ -241,7 +241,7 @@ function lib::data::bytes_to() {
 
   if [[ $# -lt 2 || $# -gt 3 || ! $precision =~ ^[0-6]$ ]] \
     || ! bytes=$(__libsh_data_uint "$1") || ! factor=$(__libsh_data_byte_factor "$2"); then
-    lib::log::red 'bytes_to requires bytes, a supported unit, and precision from 0 to 6.'
+    lib::log::print_error 'bytes_to requires bytes, a supported unit, and precision from 0 to 6.'
     return 2
   fi
 
@@ -268,7 +268,7 @@ function lib::data::bytes_format() {
 
   if [[ $# -lt 1 || $# -gt 3 || ! $precision =~ ^[0-6]$ ]] \
     || ! bytes=$(__libsh_data_uint "$1"); then
-    lib::log::red 'bytes_format requires bytes and precision from 0 to 6.'
+    lib::log::print_error 'bytes_format requires bytes and precision from 0 to 6.'
     return 2
   fi
 
@@ -282,7 +282,7 @@ function lib::data::bytes_format() {
       units=(B KB MB GB TB PB EB)
       ;;
     *)
-      lib::log::red 'Byte display system must be si or iec.'
+      lib::log::print_error 'Byte display system must be si or iec.'
       return 2
       ;;
   esac
