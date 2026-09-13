@@ -20,7 +20,7 @@
 > and review its release notes before updating. Stable compatibility guarantees will begin with version `1.0.0`.
 
 A library of open-source [MIT][license]-licensed [Bash][bash] scripts written and maintained by `Ad Noctem Collective` for use
-with [Bash][bash] version 4.0 and above. Refer to the GNU Projects's in-depth [Bash Documentation][bash_docs] for more
+with [Bash][bash] version 4.0 and above. Refer to the GNU Project's in-depth [Bash Documentation][bash_docs] for more
 information on how these scripts work. Scripts meant for direct execution by the user, an init system or other means of
 automation are located in the [`scripts`](scripts) directory. The [`lib`](lib) directory contains library scripts meant
 to be reused across files or even different repositories with things like [Git Submodules][git_submodules] or _contrib_
@@ -29,8 +29,8 @@ bootstraps [`libman`](bin/libman) to install and manage a shared library on a ma
 vendors `lib` into another repository via `git subtree`. See [`bin/README.md`](bin/README.md) for installation and updates. You
 may of course take a look at other repositories of ours for tips on how to achieve reuse.
 
-See the [API reference](docs/API.md) for lossless secret reads, explicit environment/file
-resolution, database endpoint extraction, and returning TCP waits, including runtime dependencies and migration examples.
+See the [Architecture](docs/ARCHITECTURE.md) for core, extensions, installation and runtime boundaries, and the
+[API reference](docs/API.md) for function contracts, dependencies and migration examples.
 
 ## ✨ TL;DR
 
@@ -52,6 +52,8 @@ repository, after that you may submit a [Pull Request][gh_pr_fork_docs].
 
 Refer to the [Contributing Guidelines](docs/CONTRIBUTING.md) for the build targets, coding conventions, and commit
 message format, and to [`NOMENCLATURE.md`](docs/NOMENCLATURE.md) for how scripts and library functions are named.
+Participation follows the [Code of Conduct](docs/CODE_OF_CONDUCT.md). Report suspected vulnerabilities privately
+using the [Security Policy](docs/SECURITY.md).
 
 ### 📥 Maintainers
 
@@ -62,6 +64,8 @@ contact details to reach out directly.
 ### ©️ Copyright
 
 _Assets provided by:_ **[Icons8 LLC][icons8]**
+
+Project references and upstream tools are listed in [Source Acknowledgements](docs/ACKNOWLEDGEMENTS.md).
 
 <!-- File references -->
 

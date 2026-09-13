@@ -16,7 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | b
 curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | bash -s -- --init-shell bash
 
 # Pin a release; environment variables and flags both work
-curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | LIBSH_VERSION=1.2.0 bash
+curl -fsSL https://raw.githubusercontent.com/adnoctem/libsh/main/bin/install | LIBSH_VERSION=0.6.0 bash
 ```
 
 The piped bootstrap requires a release whose `bin` bundle includes `libman`. From a checkout, `bash bin/install`
@@ -75,7 +75,7 @@ libman extension-remove git     # Remove an addon from future loads
 libman status             # Installed versions, paths and release repository; offline
 libman path               # Only the directory containing lib.sh; offline
 libman update             # Latest library release from the saved repository
-libman install 1.2.0      # Select an exact library release, including a downgrade
+libman install 0.6.0      # Select an exact library release, including a downgrade
 libman self-update       # Update the standalone manager independently
 libman uninstall         # Confirm removal interactively; --yes for automation
 ```
@@ -87,6 +87,7 @@ Changing command or tools directories requires uninstalling and reinstalling.
 `update` and `self-update` use `latest` unless a version override is supplied.
 
 Downloads have connection and total timeouts and are verified against the release's SHA-256 manifest.
+See the [Security Policy](../docs/SECURITY.md) for the installation trust model and private vulnerability reporting.
 The manager stages complete releases beside the stable library path, under `<install-dir>.libman/releases/`, then
 atomically switches its `current` symlink. Updates do not leave removed modules behind. Old releases remain on disk
 so already-loaded shells can keep using their resolved release directory; uninstall removes that managed state.

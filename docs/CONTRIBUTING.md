@@ -2,6 +2,9 @@
 
 Contributions are welcome via GitHub's Pull Requests. This document outlines the process to help get your contribution accepted.
 
+Read the [Architecture](ARCHITECTURE.md) for repository boundaries and the [Code of Conduct](CODE_OF_CONDUCT.md)
+for participation expectations. Use the private reporting route in [Security](SECURITY.md) for suspected vulnerabilities.
+
 ## ⚒️ Building
 
 The project uses [`make`](https://www.gnu.org/software/make/) to drive all development workflows. Every target is defined

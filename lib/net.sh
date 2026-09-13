@@ -402,7 +402,7 @@ function lib::net::tcp_wait() {
 # threads a resolved adapter object through every function to avoid
 # re-resolving it; here that's just an optional interface-name string, since
 # re-running 'ip'/'ifconfig' is cheap and bash has no structured objects.
-# Every function logs a red error and returns 1 on failure, matching the
+# Every function logs an ERROR intent and returns 1 on failure, matching the
 # rest of this library -- PSFoundation's separate -Required
 # throw-vs-return-$null split has no equivalent here.
 

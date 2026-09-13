@@ -3,29 +3,18 @@
 ## ➕ Additions
 
 - Add sources of archived (private) project `vpsman`
+- Plan the next package-manager enhancements as a separate feature batch
 
 ## ✏️ Planned Changes
 
-- Align `mysql-backup.sh` and `mysql-restore.sh` function prefixes with their filenames (`mysql_backup::` and
-  `mysql_restore::`), updating their call sites in the same change.
-- Finish BATS testing for all of `lib`
-- Add BATS testing for all `scripts`
-- Transition to a BATS `setup_suite` to use more demanding tools like Container runtimes to `scripts` unit testing
+- [ ] Build a container-based E2E harness for operational scripts, using BATS `setup_suite` for shared setup
 
 ## 💡 Ideas
 
 - Add public URL to use the `install` executable like `get.libsh.adnoctem.co` using GitHub Pages
-- Add POSIX utilities for working with arrays like [`krebs/array`](https://github.com/krebs/array/blob/master/array)
+- Consider native Bash array helpers inspired by [`krebs/array`](https://github.com/krebs/array), starting with
+  membership and first-index lookup. Review empty arrays, literal values and Bash 4.0 compatibility before implementation.
 
 ## 🔗 Links
 
-- [BATS Docs - Tutorial](https://bats-core.readthedocs.io/en/stable/tutorial.html)
-- [Google's Shell Style Guide](https://google.github.io/styleguide/shellguide.html)
-- [jkroepke's Helm Secrets Plugin](https://github.com/jkroepke/helm-secrets/blob/main/tests/lib/setup_suite.bash) for BATS reference
-
-### Installer
-
-- [Docker's Install script](https://github.com/docker/docker-install)
-- [Starship's Install script](https://github.com/starship/starship/blob/master/install/install.sh)
-- [PNPM's Install script](https://github.com/pnpm/get.pnpm.io/blob/main/install.sh)
-- [nvm's Install script](https://github.com/nvm-sh/nvm/blob/master/install.sh)
+_TBA.._

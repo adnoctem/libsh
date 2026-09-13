@@ -4,7 +4,9 @@ Agent guidance for `libsh`. This file lives in `docs/` and is symlinked as
 `AGENTS.md` at the repository root so it is loaded automatically. Human-facing
 sources of truth: [`CONTRIBUTING.md`](CONTRIBUTING.md) (workflow, commit
 format), [`NOMENCLATURE.md`](NOMENCLATURE.md) (naming rules),
-[`API.md`](API.md) (documented public APIs), [`TODO.md`](TODO.md) (known gaps).
+[`API.md`](API.md) (documented public APIs), [`TODO.md`](TODO.md) (known gaps),
+[`ARCHITECTURE.md`](ARCHITECTURE.md) (component boundaries), [`SECURITY.md`](SECURITY.md)
+(private vulnerability reporting), and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) (participation).
 
 ## Repository shape
 
@@ -80,5 +82,5 @@ Run `make init` first (checks out BATS submodules).
 - Generated `CHANGELOG.md` is excluded from lint/format checks; do not hand-edit it.
 - `API.md` covers every public core/extension function; `test/lib/libsh.bats` checks
   that each public function has exactly one reference entry. Keep behavior and docs aligned.
-- `mysql-backup.sh` / `mysql-restore.sh` function prefixes do not match their
-  filenames yet (tracked in TODO.md); new scripts must not copy that pattern.
+- Comprehensive operational-script E2E coverage remains planned in TODO.md;
+  core BATS coverage does not replace integration tests for those scripts.
