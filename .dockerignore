@@ -22,6 +22,9 @@
 !test/lib/data.bats
 !test/lib/opt.bats
 !test/lib/os.bats
+!test/lib/fs.bats
+!test/lib/hash.bats
+!test/lib/cmp.bats
 !test/extensions/
 !test/extensions/secret.bats
 !test/bats/

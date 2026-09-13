@@ -233,7 +233,7 @@ function main() {
   fi
 
   if [[ $dry_run != "1" ]]; then
-    lib::os::ensure_directory "$destination"
+    lib::fs::ensure_directory "$destination"
   fi
 
   for file in "${valid_archives[@]}"; do

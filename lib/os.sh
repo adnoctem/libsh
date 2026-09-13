@@ -5,24 +5,6 @@
 #
 # ref: https://specifications.freedesktop.org/basedir-spec/latest/
 
-# Ensure a base-directory for a given path exists
-function lib::os::ensure_existence() {
-  local path=${1}
-
-  if [[ ! -e ${path} ]]; then
-    mkdir -p "$(dirname "${path}")"
-  fi
-}
-
-# Ensure a directory itself exists, rather than its parent
-function lib::os::ensure_directory() {
-  local path=${1}
-
-  if [[ ! -d ${path} ]]; then
-    mkdir -p "${path}"
-  fi
-}
-
 #######################################
 # Resolve the user's XDG config directory. XDG_CONFIG_HOME always wins when
 # set; otherwise falls back to the platform-native default -- macOS doesn't

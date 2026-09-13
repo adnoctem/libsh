@@ -165,7 +165,7 @@ function main() {
     return 0
   fi
 
-  lib::os::ensure_existence "$filename"
+  lib::fs::ensure_existence "$filename"
   ubuntu_list_packages::exec "$all" "$with_versions" >"$filename"
 
   count=$(grep -c . "$filename" || true)

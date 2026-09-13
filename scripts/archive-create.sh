@@ -179,7 +179,7 @@ function archive_create::exec() {
   size=$(numfmt --to=iec-i --suffix=B "$total")
   lib::log::timed_yellow "Archiving ${#sources[@]} source(s) (≈$size before compression) into $archive ..."
 
-  lib::os::ensure_existence "$archive"
+  lib::fs::ensure_existence "$archive"
 
   # pv sits between tar and the compressor on purpose: it then measures
   # the uncompressed byte count the estimate above is based on.

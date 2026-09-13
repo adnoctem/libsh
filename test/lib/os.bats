@@ -45,46 +45,6 @@ fake_uname_darwin() {
 	chmod +x "$TEST_TMP/bin/uname"
 }
 
-# lib::os::ensure_existence -- creates the PARENT of the given path, so
-# callers hand it the file they are about to write.
-@test "lib::os::ensure_existence creates the parent directory of a file" {
-	lib::os::ensure_existence "$TEST_TMP/deeply/nested/dump.sql"
-
-	assert [ -d "$TEST_TMP/deeply/nested" ]
-}
-
-@test "lib::os::ensure_existence does not create the file itself" {
-	lib::os::ensure_existence "$TEST_TMP/deeply/nested/dump.sql"
-
-	refute [ -e "$TEST_TMP/deeply/nested/dump.sql" ]
-}
-
-@test "lib::os::ensure_existence leaves an existing path alone" {
-	mkdir -p "$TEST_TMP/existing"
-	printf 'keep me\n' >"$TEST_TMP/existing/file.txt"
-
-	lib::os::ensure_existence "$TEST_TMP/existing/file.txt"
-
-	assert_equal "$(cat "$TEST_TMP/existing/file.txt")" "keep me"
-}
-
-# lib::os::ensure_directory -- creates the path itself, for callers that
-# have a directory rather than a file.
-@test "lib::os::ensure_directory creates the directory itself" {
-	lib::os::ensure_directory "$TEST_TMP/a/b/c"
-
-	assert [ -d "$TEST_TMP/a/b/c" ]
-}
-
-@test "lib::os::ensure_directory is a no-op on an existing directory" {
-	mkdir -p "$TEST_TMP/already"
-	printf 'keep me\n' >"$TEST_TMP/already/file.txt"
-
-	lib::os::ensure_directory "$TEST_TMP/already"
-
-	assert [ -f "$TEST_TMP/already/file.txt" ]
-}
-
 # lib::os::config_home / data_home / cache_home / state_home -- the XDG
 # Base Directory Specification's four user directories, each honouring its
 # XDG_*_HOME override with the spec's documented fallback.

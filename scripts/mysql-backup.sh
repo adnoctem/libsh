@@ -230,10 +230,10 @@ function main() {
     # database dump into the same file, silently overwriting the last one.
     file="$destination/mysqldump_${db_name}-${curdate}.sql"
 
-    # 'lib::os::ensure_existence' creates the *parent* of the path it's given,
+    # 'lib::fs::ensure_existence' creates the *parent* of the path it's given,
     # so hand it the dump file to get the destination directory.
     if [[ $dry_run != "1" ]]; then
-      lib::os::ensure_existence "$file"
+      lib::fs::ensure_existence "$file"
     fi
 
     backup_mysql::exec "$host" "$port" "$user" "$db_name" "$file" "$dry_run"
