@@ -56,8 +56,11 @@ Run `make init` first (checks out BATS submodules).
   fail if the library is missing, and `cd -P` once before sourcing. Never invoke
   `libman` at runtime.
 - Errors via `lib::log::red` (stderr); progress output to stdout.
-- Group shell code into logical paragraphs separated by one blank line; baseline is
-  the Google Shell Style Guide. `shfmt` handles mechanical formatting only.
+- Group related steps into logical paragraphs separated by one blank line; do not add spacing
+  between every statement. Short `case` arms are welcome for simple mappings; expand complex arms.
+  Follow [the readability and header standard](CONTRIBUTING.md#shell-readability-and-function-comments),
+  using `lib::net::ip_address` for comment layout. Labels stand alone; section contents are indented.
+  `shfmt` handles mechanical formatting only; preserve fixture contents and Bash 4.0 idioms.
 - `bin/` executables stay standalone; their tests use fake `curl` release fixtures
   under `test/bin`.
 

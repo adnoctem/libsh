@@ -98,6 +98,8 @@ function ubuntu_install_packages::prerequisites() {
 #   1 - Manifest file path
 # Outputs:
 #   One package name per line to stdout.
+# Returns:
+#   The loop status; nonzero if the manifest cannot be opened.
 #######################################
 function ubuntu_install_packages::from_manifest() {
   local filename=${1} line
@@ -127,6 +129,7 @@ function ubuntu_install_packages::from_manifest() {
 #######################################
 function ubuntu_install_packages::exec() {
   local dry_run=${1}
+
   shift
   local -a packages=("$@")
 
@@ -156,7 +159,9 @@ function ubuntu_install_packages::exec() {
 #   OPTS_VALUES (written by lib::opt::parse)
 #   PACKAGE_PATTERN (read)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success or when everything is already installed, 1 on a usage,
 #   manifest or confirmation error.
@@ -241,6 +246,7 @@ function main() {
   fi
 
   lib::log::yellow "${#missing[@]} package(s) to install:"
+
   for package in "${missing[@]}"; do
     lib::log::plain "  - $package"
   done

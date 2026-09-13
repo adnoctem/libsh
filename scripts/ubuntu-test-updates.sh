@@ -88,7 +88,9 @@ function ubuntu_test_updates::prerequisites() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 when nothing --fail-on names is outstanding, 1 when something is,
 #   2 on a usage error.
@@ -113,11 +115,11 @@ function main() {
   max_list_age="${OPTS_VALUES[max_list_age]:-7}"
 
   case "$fail_on" in
-  any | security | reboot | never) ;;
-  *)
-    lib::log::red "Invalid --fail-on '$fail_on'; expected one of any, security, reboot, never."
-    return 2
-    ;;
+    any | security | reboot | never) ;;
+    *)
+      lib::log::red "Invalid --fail-on '$fail_on'; expected one of any, security, reboot, never."
+      return 2
+      ;;
   esac
 
   if [[ ! $max_list_age =~ ^[0-9]+$ ]]; then
@@ -163,16 +165,16 @@ function main() {
   fi
 
   case "$fail_on" in
-  any)
-    [[ $total -gt 0 || -n $reboot ]] && return 1
-    ;;
-  security)
-    [[ $security -gt 0 ]] && return 1
-    ;;
-  reboot)
-    [[ -n $reboot ]] && return 1
-    ;;
-  never) ;;
+    any)
+      [[ $total -gt 0 || -n $reboot ]] && return 1
+      ;;
+    security)
+      [[ $security -gt 0 ]] && return 1
+      ;;
+    reboot)
+      [[ -n $reboot ]] && return 1
+      ;;
+    never) ;;
   esac
 
   return 0

@@ -34,14 +34,16 @@
 #   None
 # Outputs:
 #   The history file path to stdout.
+# Returns:
+#   The final output command status.
 #######################################
 function ext::shell::history_file() {
   local file=${HISTFILE:-}
 
   if [[ -z $file ]]; then
     case "$(basename "${SHELL:-bash}")" in
-    zsh) file="${HOME}/.zsh_history" ;;
-    *) file="${HOME}/.bash_history" ;;
+      zsh) file="${HOME}/.zsh_history" ;;
+      *) file="${HOME}/.bash_history" ;;
     esac
   fi
 
@@ -97,6 +99,7 @@ function ext::shell::history_scrub() {
   # 'grep -v' exits 1 when it selects nothing, which here only means every
   # line held the secret. Anything above 1 is a real failure.
   grep -vF -- "$secret" "$file" >"$tmp" || rc=$?
+
   if ((rc > 1)); then
     rm -f "$tmp"
     lib::log::red "Could not filter '$file'; left it untouched."

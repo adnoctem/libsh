@@ -52,14 +52,18 @@
 #   None
 # Outputs:
 #   Writes usage to stdout
+# Returns:
+#   The status of the final usage-output operation.
 #######################################
 function lib::opt::usage() {
   local script_name
+
   script_name=$(basename "${0}")
   echo "Usage: $script_name [OPTIONS]"
   echo
 
   local entry flags key takes_value required short long label
+
   for entry in ${OPTS[@]+"${OPTS[@]}"}; do
     IFS=':' read -r flags key takes_value required <<<"$entry"
     IFS=',' read -r short long <<<"$flags"
@@ -84,14 +88,14 @@ function lib::opt::usage() {
 #   OPTS_HELP  (read)  -- descriptions, defined by the calling script
 #   OPTS_VALUES (write, reset at the start of every call)
 # Arguments:
-#   The script's original "$@"
-# Returns:
-#   0 on success. 1 on an unknown flag, a value flag missing its value,
-#   or a required flag not supplied (each case prints an error first).
+#   1+ - The script's original "$@"
 # Outputs:
 #   Nothing on success. Errors to stderr via lib::log::red on failure.
 #   On help, prints usage, sets OPTS_VALUES["help"]=1, and returns 0.
 #   Library callers should locally declare all three OPTS arrays.
+# Returns:
+#   0 on success. 1 on an unknown flag, a value flag missing its value,
+#   or a required flag not supplied (each case prints an error first).
 #######################################
 function lib::opt::parse() {
   OPTS_VALUES=()
@@ -104,8 +108,8 @@ function lib::opt::parse() {
       IFS=':' read -r flags key takes_value required <<<"$entry"
       IFS=',' read -r short long <<<"$flags"
 
-      if { [[ -n $short ]] && [[ $1 == "$short" ]]; } ||
-        { [[ -n $long ]] && [[ $1 == "$long" ]]; }; then
+      if { [[ -n $short ]] && [[ $1 == "$short" ]]; } \
+        || { [[ -n $long ]] && [[ $1 == "$long" ]]; }; then
         matched=1
 
         if [[ $key == "help" ]]; then
@@ -137,6 +141,7 @@ function lib::opt::parse() {
 
   local missing=()
   local m_entry m_flags m_key m_takes_value m_required m_short m_long
+
   for m_entry in ${OPTS[@]+"${OPTS[@]}"}; do
     # shellcheck disable=SC2034  # takes_value isn't needed for this pass
     IFS=':' read -r m_flags m_key m_takes_value m_required <<<"$m_entry"

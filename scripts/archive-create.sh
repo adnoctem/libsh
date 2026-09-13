@@ -103,6 +103,7 @@ function archive_create::prerequisites() {
 #######################################
 function archive_create::exec() {
   local name=${1} destination=${2} compression=${3} exclude=${4} dry_run=${5}
+
   shift 5
   local -a sources=("$@")
 
@@ -110,26 +111,26 @@ function archive_create::exec() {
   local -a compress_cmd=() exclude_args=() members=() patterns=()
 
   case "$compression" in
-  gzip)
-    extension="tar.gz"
-    compress_cmd=(gzip -c)
-    compressor="gzip"
-    ;;
-  zstd)
-    extension="tar.zst"
-    compress_cmd=(zstd -c -T0)
-    compressor="zstd"
-    ;;
-  xz)
-    extension="tar.xz"
-    compress_cmd=(xz -c -T0)
-    compressor="xz"
-    ;;
-  none)
-    extension="tar"
-    compress_cmd=(cat)
-    compressor=""
-    ;;
+    gzip)
+      extension="tar.gz"
+      compress_cmd=(gzip -c)
+      compressor="gzip"
+      ;;
+    zstd)
+      extension="tar.zst"
+      compress_cmd=(zstd -c -T0)
+      compressor="zstd"
+      ;;
+    xz)
+      extension="tar.xz"
+      compress_cmd=(xz -c -T0)
+      compressor="xz"
+      ;;
+    none)
+      extension="tar"
+      compress_cmd=(cat)
+      compressor=""
+      ;;
   esac
 
   if [[ -n $compressor ]] && ! lib::os::is_executable "$compressor"; then
@@ -172,6 +173,7 @@ function archive_create::exec() {
   # Only an ETA input for pv, so unreadable paths are not worth failing
   # over -- and --exclude patterns make it an over-estimate anyway.
   total=$(du -scb -- "${sources[@]}" 2>/dev/null | tail -n 1 | cut -f 1)
+
   if [[ ! $total =~ ^[0-9]+$ ]]; then
     total=0
   fi
@@ -199,7 +201,9 @@ function archive_create::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage or source error.
 #######################################
@@ -225,11 +229,11 @@ function main() {
   dry_run="${OPTS_VALUES[dry_run]:-}"
 
   case "$compression" in
-  gzip | zstd | xz | none) ;;
-  *)
-    lib::log::red "Invalid compression '$compression'; expected one of gzip, zstd, xz, none."
-    return 1
-    ;;
+    gzip | zstd | xz | none) ;;
+    *)
+      lib::log::red "Invalid compression '$compression'; expected one of gzip, zstd, xz, none."
+      return 1
+      ;;
   esac
 
   IFS=',' read -ra raw_sources <<<"${OPTS_VALUES[sources]}"

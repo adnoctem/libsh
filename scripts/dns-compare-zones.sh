@@ -128,7 +128,9 @@ function dns_compare_zones::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 when every type matched or only warned, 1 on a usage error or a
 #   differing error-level type, 2 when a query failed.

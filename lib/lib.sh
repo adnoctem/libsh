@@ -9,7 +9,7 @@ LIBSH_LIB_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd
 #   LIBSH_LIB_DIR (read), LIBSH_LOADED, LIBSH_LOADED_VERSION (written)
 #   __libsh_lib_core_dir, __libsh_lib_extensions (internal load state)
 # Arguments:
-#   None. Use lib::load_extensions for addons.
+#   1 - None. Use lib::load_extensions for addons.
 # Outputs:
 #   Errors on stderr.
 # Returns:
@@ -20,6 +20,7 @@ LIBSH_LIB_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd
 function lib::load() {
   local __libsh_lib_module __libsh_lib_found=0
   local __libsh_lib_version=development
+
   if [[ $# != 0 ]]; then
     printf 'libsh: lib::load takes no arguments; use lib::load_extensions for addons.\n' >&2
     return 2
@@ -56,7 +57,7 @@ function lib::load() {
 # Globals:
 #   LIBSH_LIB_DIR, __libsh_lib_extensions (read/write via loader)
 # Arguments:
-#   Zero or more extension names, e.g. secret git apt.
+#   1+ - Zero or more extension names, e.g. secret git apt.
 # Outputs:
 #   Errors on stderr. Never installs or downloads extensions.
 # Returns:
@@ -89,6 +90,7 @@ function lib::load_extensions() {
     . "$LIBSH_LIB_DIR/../extensions/lib$__libsh_lib_name.sh" || return $?
     __libsh_lib_extensions+="$__libsh_lib_name "
   done
+
   return 0
 }
 

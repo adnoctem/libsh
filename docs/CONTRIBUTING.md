@@ -329,8 +329,7 @@ review.
 - Must target Bash 4.0 or higher (associative arrays are used; `local -n` namerefs are deliberately avoided so the
   library also runs on 4.0–4.2)
 - Must pass `make lint` with zero findings and `make test` with zero failures
-- Functions carry a [Google Shell Style](https://google.github.io/styleguide/shellguide.html) header comment
-  documenting `Globals:`, `Arguments:`, `Outputs:`, and `Returns:`
+- Follow the [shell readability standard](#shell-readability-and-function-comments) below.
 
 **Scripts under `scripts/`**
 
@@ -374,6 +373,68 @@ review.
 - Extension private helpers use `__libsh_ext_<name>_<function>`.
 - Ship a matching `test/lib/<module>.bats` for core or `test/extensions/<name>.bats` for an extension
 - Write errors with `lib::log::red`, which goes to stderr; progress output goes to stdout
+
+### Shell readability and function comments
+
+Use logical paragraphs: keep adjacent steps that serve one purpose together, and separate different
+steps with one blank line. Validation, preparation, processing, and output often form useful groups;
+they are not mandatory sections for every function. Small helpers may need no internal blank lines.
+Use `lib::load`, `lib::opt::parse`, and `lib::net::ip_address` as reference examples.
+
+- Keep short, readable `case` arms for simple mappings. Use one arm per line; expand long or multi-step
+  arms, especially option parsing. Separate related groups where it helps scanning.
+- Expand inline `if`/`else` and loop bodies. Keep `then`/`do` on the opening line and closing keywords
+  on their own lines. A short guard such as `command || return 1` is fine.
+- Keep closely related declarations and assignments together. Split them when they become hard to
+  scan; do not enforce one variable per line or add spacing merely to increase line counts.
+- Use two spaces for owned shell sources and BATS tests. Preserve literal fixture contents and tabs
+  required by `<<-` heredocs. `.editorconfig` controls indentation, indented case arms and leading
+  continuation operators for both `make format` and pre-commit.
+- Target 80 columns. Wrap long pipelines at their stages. Keep reviewed exceptions for literal
+  output, fixture data, URLs, digests, regexes and Bash compatibility expressions.
+- Preserve the established variable-expansion style. Quote arguments; use braces for boundaries,
+  defaults, arrays and other required expansions. Preserve intentionally unquoted matching operands.
+- Declare function-specific variables locally. Separate declarations from fallible command
+  substitutions so their status can be checked. Preserve intentional output-variable writes.
+- Keep pipeline/subshell boundaries and arithmetic safe under the caller's shell options. A formatting
+  pass must not alter return values, output bytes, evaluation order, traps, or shell state.
+
+Each public or private function in `lib/` and `extensions/`, and each production executable function,
+uses this header layout, modeled on `lib::net::ip_address`:
+
+```bash
+#######################################
+# Describe the operation and its important behavioral limits.
+# Globals:
+#   None
+# Arguments:
+#   1 - Input description
+#   2 - Optional input (default: value)
+# Outputs:
+#   Result to stdout. Errors to stderr.
+# Returns:
+#   Describe this function's actual return statuses.
+#######################################
+function lib::module::example() {
+  ...
+}
+```
+
+Keep the four required sections in that order, with labels on separate lines, three spaces after `#`
+for section contents, and `None` for an empty section. Number arguments individually (`1+` for variadic
+arguments); explain defaults, accepted values and caller-owned output references. An optional `Inputs:`
+section after `Arguments:` describes stdin; optional `Dependencies:` after `Returns:` lists commands
+or platform requirements. Put behavioral notes and specification references in the description.
+
+Add a brief file overview after the shellcheck directive or shebang. Explain non-obvious implementation
+choices without narrating every statement. Reusable test helpers use the same header layout; BATS
+lifecycle hooks, test cases and small local test doubles may use concise descriptive comments.
+Fixtures and vendored sources are not subject to the production function-header rule.
+
+The [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) remains the baseline.
+Repository choices take precedence: Bash 4.0 support, executable `env bash` shebangs, existing filenames
+and namespaces, and mandatory `function` declarations in sourced libraries. Correctness issues found
+while applying style rules should be reviewed separately from formatting changes.
 
 ### Versioning
 

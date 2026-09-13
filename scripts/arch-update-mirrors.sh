@@ -185,7 +185,9 @@ function arch_update_mirrors::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage, reflector or confirmation error.
 #######################################
@@ -224,11 +226,11 @@ function main() {
   fi
 
   case "$protocol" in
-  https | http | rsync | ftp) ;;
-  *)
-    lib::log::red "Invalid --protocol '$protocol'; expected one of https, http, rsync, ftp."
-    return 1
-    ;;
+    https | http | rsync | ftp) ;;
+    *)
+      lib::log::red "Invalid --protocol '$protocol'; expected one of https, http, rsync, ftp."
+      return 1
+      ;;
   esac
 
   arch_update_mirrors::exec "$countries" "$latest" "$protocol" "$filename" "$dry_run" "$assume_yes"

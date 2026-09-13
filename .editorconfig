@@ -1,13 +1,17 @@
 root = true
 
-[*.sh]
+[*.{sh,bats}]
 indent_style = space
 indent_size = 2
+switch_case_indent = true
+binary_next_line = true
 
 # Standalone shell entry points have no .sh extension.
 [bin/{install,libman,libtree}]
 indent_style = space
 indent_size = 2
+switch_case_indent = true
+binary_next_line = true
 
 # Ignore paths
 [test/bats/**]

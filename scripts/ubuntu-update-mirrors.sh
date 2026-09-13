@@ -99,6 +99,8 @@ function ubuntu_update_mirrors::prerequisites() {
 #   None
 # Outputs:
 #   The sources file path to stdout, empty if none was found.
+# Returns:
+#   0 for a supported source layout, 1 when no supported file exists.
 #######################################
 function ubuntu_update_mirrors::sources_file() {
   local candidate
@@ -191,7 +193,9 @@ function ubuntu_update_mirrors::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage, sources-file or confirmation error.
 #######################################

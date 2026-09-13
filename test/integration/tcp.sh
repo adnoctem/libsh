@@ -6,6 +6,17 @@ set -euo pipefail
 source "${1:?Pass the installed lib.sh path}"
 test_tcp_dir=$(mktemp -d)
 test_tcp_pid=''
+#######################################
+# Stop the test TCP listener and remove temporary fixture files.
+# Globals:
+#   test_tcp_pid, test_tcp_dir (read)
+# Arguments:
+#   None
+# Outputs:
+#   Cleanup errors to stderr; listener shutdown errors are suppressed.
+# Returns:
+#   The rm status.
+#######################################
 cleanup() {
   if [[ -n $test_tcp_pid ]]; then
     kill "$test_tcp_pid" 2>/dev/null || true

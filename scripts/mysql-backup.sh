@@ -163,7 +163,9 @@ function backup_mysql::exec() {
 #   OPTS_VALUES (written by lib::opt::parse)
 #   MYSQL_PWD (read as a fallback, exported for mysql/mysqldump)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage or credential error.
 #######################################
@@ -197,6 +199,7 @@ function main() {
   fi
 
   export MYSQL_PWD="${password:-${MYSQL_PWD:-}}"
+
   unset password
 
   if [[ -z $MYSQL_PWD ]]; then

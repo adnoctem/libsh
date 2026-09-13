@@ -29,7 +29,9 @@ Optional `extensions/lib<name>.sh` files expose `ext::<name>::<function>` and us
 `__libsh_ext_<name>_<function>` for private helpers.
 
 See the [library conventions](CONTRIBUTING.md#technical-requirements) for the
-remaining source and testing requirements.
+remaining source and testing requirements. Use the
+[readability and function-comment standard](CONTRIBUTING.md#shell-readability-and-function-comments)
+for header layout and logical paragraph boundaries. Short, readable `case` arms are permitted.
 
 ## [scripts](../scripts)
 

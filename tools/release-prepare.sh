@@ -78,6 +78,8 @@ function release_prepare::prerequisites() {
 #   None
 # Arguments:
 #   1 - Version string to validate
+# Outputs:
+#   Validation errors to stderr.
 # Returns:
 #   0 if valid, 1 otherwise (with an error on stderr).
 #######################################
@@ -104,6 +106,8 @@ function release_prepare::validate_version() {
 # Arguments:
 #   1 - New version string
 #   2 - "1" for a dry run, "" otherwise
+# Outputs:
+#   Errors to stderr; updates the Makefile version.
 # Returns:
 #   0 on success, 1 if the VERSION line could not be found.
 #######################################
@@ -131,6 +135,8 @@ function release_prepare::set_makefile_version() {
 #   ROOT_DIR (read)
 # Arguments:
 #   1 - "1" for a dry run, "" otherwise
+# Outputs:
+#   Build progress to stdout and errors to stderr.
 # Returns:
 #   0 on success, otherwise the return value of 'make'.
 #######################################
@@ -153,6 +159,8 @@ function release_prepare::build() {
 #   DIST_DIR, CHECKSUMS_FILE (read)
 # Arguments:
 #   1 - "1" for a dry run, "" otherwise
+# Outputs:
+#   Checksum manifest on disk; command errors to stderr.
 # Returns:
 #   0 on success, 1 if dist/ or its archives are missing.
 #######################################
@@ -198,7 +206,9 @@ function release_prepare::write_checksums() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage or version error.
 #######################################
@@ -221,6 +231,7 @@ function main() {
   dry_run="${OPTS_VALUES[dry_run]:-}"
 
   release_prepare::validate_version "$version" || return 1
+
   if [[ ${OPTS_VALUES[check_version]:-} == 1 ]]; then
     return 0
   fi

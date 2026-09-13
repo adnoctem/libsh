@@ -1,16 +1,18 @@
 # shellcheck shell=bash
 
+# Create and activate Python virtual environments.
+
 #######################################
 # Activate the Python venv in the current directory, creating it first if
 # it does not exist yet.
 # Globals:
-#   None
+#   Activation may modify PATH, VIRTUAL_ENV, the prompt and shell functions.
 # Arguments:
 #   None
 # Outputs:
 #   Whatever 'python -m venv' writes, when it has to create the venv.
 # Returns:
-#   0 on success, otherwise the return value of 'python -m venv'.
+#   The venv creation failure status, or the activation script status.
 #######################################
 function ext::py::venv() {
   local venv activate python

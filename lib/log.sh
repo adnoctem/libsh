@@ -15,6 +15,8 @@
 #   2 - The string to log
 # Outputs:
 #   The given string, in the given color.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::log::print() {
   local color=${1} message=${2:-}
@@ -32,27 +34,69 @@ function lib::log::print() {
 #   1 - The string to log
 # Outputs:
 #   The given string, verbatim.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::log::plain() {
   printf '%s\n' "${1:-}"
 }
 
+#######################################
 # Write red output to stderr
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Colored message to stderr.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::red() {
   lib::log::print "31m" "${1}" >&2
 }
 
+#######################################
 # Write yellow output to stdout
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Colored message to stdout.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::yellow() {
   lib::log::print "33m" "${1}"
 }
 
+#######################################
 # Write green output to stdout
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Colored message to stdout.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::green() {
   lib::log::print "32m" "${1}"
 }
 
+#######################################
 # Write cyan output to stdout
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Colored message to stdout.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::cyan() {
   lib::log::print "36m" "${1}"
 }
@@ -67,6 +111,8 @@ function lib::log::cyan() {
 #   2 - The string to log
 # Outputs:
 #   The given string, timestamped and colored.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::log::timed() {
   local color=${1} message=${2:-} time
@@ -79,22 +125,62 @@ function lib::log::timed() {
   lib::log::print "$color" "[$time]: $message"
 }
 
+#######################################
 # Write timestamped red output to stderr
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Timestamped colored message to stderr.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::timed_red() {
   lib::log::timed "31m" "${1}" >&2
 }
 
+#######################################
 # Write timestamped yellow output to stdout
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Timestamped colored message to stdout.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::timed_yellow() {
   lib::log::timed "33m" "${1}"
 }
 
+#######################################
 # Write timestamped green output to stdout
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Timestamped colored message to stdout.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::timed_green() {
   lib::log::timed "32m" "${1}"
 }
 
+#######################################
 # Write timestamped cyan output to stdout
+# Globals:
+#   None
+# Arguments:
+#   1 - Message to log
+# Outputs:
+#   Timestamped colored message to stdout.
+# Returns:
+#   The final output command status.
+#######################################
 function lib::log::timed_cyan() {
   lib::log::timed "36m" "${1}"
 }

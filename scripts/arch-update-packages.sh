@@ -105,6 +105,8 @@ function arch_update_packages::prerequisites() {
 #   None
 # Outputs:
 #   One "<name> <old> -> <new>" line per pending package to stdout.
+# Returns:
+#   0; package-query failures are deliberately ignored.
 #######################################
 function arch_update_packages::pending() {
   if lib::os::is_executable checkupdates; then
@@ -185,7 +187,9 @@ function arch_update_packages::exec() {
 #   OPTS_VALUES (written by lib::opt::parse)
 #   KERNEL_PACKAGES (read)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage or confirmation error.
 #######################################

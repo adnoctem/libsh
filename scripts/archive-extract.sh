@@ -107,11 +107,11 @@ function archive_extract::exec() {
   # itself, not when the bytes arrive on stdin from pv, so the
   # decompressor is named explicitly here.
   case "$filename" in
-  *.tar.gz | *.tgz) decompress_cmd=(gzip -dc) ;;
-  *.tar.zst | *.tzst) decompress_cmd=(zstd -dc) ;;
-  *.tar.xz | *.txz) decompress_cmd=(xz -dc) ;;
-  *.tar.bz2 | *.tbz2) decompress_cmd=(bzip2 -dc) ;;
-  *.tar) decompress_cmd=(cat) ;;
+    *.tar.gz | *.tgz) decompress_cmd=(gzip -dc) ;;
+    *.tar.zst | *.tzst) decompress_cmd=(zstd -dc) ;;
+    *.tar.xz | *.txz) decompress_cmd=(xz -dc) ;;
+    *.tar.bz2 | *.tbz2) decompress_cmd=(bzip2 -dc) ;;
+    *.tar) decompress_cmd=(cat) ;;
   esac
 
   if [[ $dry_run == "1" ]]; then
@@ -164,7 +164,9 @@ function archive_extract::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage, archive or confirmation error.
 #######################################

@@ -3,11 +3,12 @@
 set -euo pipefail
 
 #######################################
-# Use a checkout's manager, or download the selected release's verified manager.
+# Use a checkout's manager, or download the selected release's verified
+# manager.
 # Globals:
 #   LIBSH_REPO, LIBSH_VERSION (optional release selection)
 # Arguments:
-#   Options forwarded unchanged to libman install.
+#   1+ - Options forwarded unchanged to libman install
 # Outputs:
 #   Installation progress and shell setup instructions.
 # Returns:
@@ -29,8 +30,8 @@ __libsh_install_main() {
     option=$1
     shift
     case $option in
-    -h | --help)
-      cat <<'HELP'
+      -h | --help)
+        cat <<'HELP'
 Usage: install [OPTIONS]
 Bootstrap libman and install libsh. All options are forwarded to libman install.
   -v, --version TAG       Release (default: latest)
@@ -45,21 +46,24 @@ Bootstrap libman and install libsh. All options are forwarded to libman install.
 No PATH, BASH_ENV or parent-shell changes are made.
 Piped use: curl -fsSL <installer-url> | bash -s -- --init-shell bash
 HELP
-      return 0
-      ;;
-    -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir | --extensions)
-      [[ $# -gt 0 && -n $1 ]] || {
-        printf 'install: missing value for %s\n' "$option" >&2
+        return 0
+        ;;
+      -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir | --extensions)
+        [[ $# -gt 0 && -n $1 ]] || {
+          printf 'install: missing value for %s\n' "$option" >&2
+          return 2
+        }
+        case $option in
+          -v | --version) version=$1 ;;
+          -r | --repo) repo=$1 ;;
+        esac
+        shift
+        ;;
+      --include-tools | --no-modify-profile) ;;
+      *)
+        printf 'install: unknown option: %s\n' "$option" >&2
         return 2
-      }
-      case $option in -v | --version) version=$1 ;; -r | --repo) repo=$1 ;; esac
-      shift
-      ;;
-    --include-tools | --no-modify-profile) ;;
-    *)
-      printf 'install: unknown option: %s\n' "$option" >&2
-      return 2
-      ;;
+        ;;
     esac
   done
 
@@ -102,23 +106,27 @@ HELP
       expected=$checksum
     fi
   done <"$work/CHECKSUMS_SHA256.txt"
+
   [[ $expected =~ ^[a-fA-F0-9]{64}$ ]] || {
     printf 'install: missing manager checksum\n' >&2
     return 1
   }
 
   curl -fsSL --connect-timeout 15 --max-time 300 -o "$work/$asset" "$url/$asset"
+
   if command -v sha256sum >/dev/null 2>&1; then
     actual=$(sha256sum "$work/$asset")
   else
     actual=$(shasum -a 256 "$work/$asset")
   fi
+
   [[ ${actual%% *} == "$expected" ]] || {
     printf 'install: manager checksum mismatch\n' >&2
     return 1
   }
 
   listing=$(tar -tvzf "$work/$asset")
+
   while IFS= read -r entry; do
     [[ $entry == -* || $entry == d* ]] || {
       printf 'install: unsupported archive entry\n' >&2

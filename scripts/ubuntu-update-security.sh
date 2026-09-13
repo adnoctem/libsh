@@ -99,6 +99,7 @@ function ubuntu_update_security::prerequisites() {
 #######################################
 function ubuntu_update_security::exec() {
   local dry_run=${1}
+
   shift
   local -a packages=("$@")
 
@@ -133,7 +134,9 @@ function ubuntu_update_security::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success or when nothing is pending, 1 on a usage or confirmation
 #   error.
@@ -178,6 +181,7 @@ function main() {
   fi
 
   lib::log::yellow "${#packages[@]} package(s) with security updates pending:"
+
   for package in "${packages[@]}"; do
     lib::log::plain "  - $package"
   done

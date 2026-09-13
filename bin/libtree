@@ -4,20 +4,27 @@ set -euo pipefail
 
 #######################################
 # Import a filtered upstream snapshot without switching consumer branches.
-# Globals: None
+# Globals:
+#   None
 # Arguments:
-#   pull|update [DESTINATION] [--repo URL] [--ref REF] [--extensions LIST]
-# Outputs: Git progress and errors.
-# Returns: Nonzero for invalid arguments or failed Git operations.
+#   1 - Action: pull or update (help and --help are also accepted)
+#   2 - Destination (optional, default scripts/libsh)
+#   3+ - Optional --repo URL, --ref REF and --extensions LIST
+# Outputs:
+#   Git progress and errors.
+# Returns:
+#   Nonzero for invalid arguments or failed Git operations.
 #######################################
 libtree::main() (
   local action=${1:-help} destination=scripts/libsh repo='' ref='' extensions=''
   local selected=0 work='' root metadata key value commit tree snapshot line name
   local mode type oid path
+
   [[ $# == 0 ]] || shift
+
   case $action in
-  help | --help | -h)
-    cat <<'HELP'
+    help | --help | -h)
+      cat <<'HELP'
 Usage: libtree pull|update [DESTINATION] [OPTIONS]
 Vendor core under DESTINATION/lib and optional addons under DESTINATION/extensions.
 Default destination: scripts/libsh. Source DESTINATION/lib/lib.sh to load core.
@@ -29,37 +36,40 @@ Git fetches upstream history; only selected sources enter the consumer subtree.
 Use bin/install for selective release downloads instead of Git vendoring.
 A clean consumer working tree is required. No tracking branches or remotes are created.
 HELP
-    return 0
-    ;;
-  pull | update) ;;
-  *)
-    printf 'libtree: expected pull, update or help.\n' >&2
-    return 2
-    ;;
+      return 0
+      ;;
+    pull | update) ;;
+    *)
+      printf 'libtree: expected pull, update or help.\n' >&2
+      return 2
+      ;;
   esac
+
   if [[ $# -gt 0 && $1 != -* ]]; then
     destination=$1
     shift
   fi
+
   while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 && -n $2 ]] || {
       printf 'libtree: missing option value.\n' >&2
       return 2
     }
     case $1 in
-    --repo) repo=$2 ;;
-    --ref) ref=$2 ;;
-    --extensions)
-      extensions=$2
-      selected=1
-      ;;
-    *)
-      printf 'libtree: unknown option: %s\n' "$1" >&2
-      return 2
-      ;;
+      --repo) repo=$2 ;;
+      --ref) ref=$2 ;;
+      --extensions)
+        extensions=$2
+        selected=1
+        ;;
+      *)
+        printf 'libtree: unknown option: %s\n' "$1" >&2
+        return 2
+        ;;
     esac
     shift 2
   done
+
   [[ $destination != /* && $destination != -* && $destination != *[[:cntrl:]]* &&
     ! $destination =~ (^|/)\.\.?(/|$) && $destination != */ ]] || {
     printf 'libtree: use a relative destination without dot components.\n' >&2
@@ -72,6 +82,7 @@ HELP
     return 1
   }
   metadata=$destination/.libsh-vendor
+
   if [[ $action == update ]]; then
     [[ -f $metadata ]] || {
       printf 'libtree: no managed subtree at %s.\n' "$destination" >&2
@@ -79,9 +90,9 @@ HELP
     }
     while IFS='=' read -r key value; do
       case $key in
-      repo) repo=${repo:-$value} ;;
-      ref) ref=${ref:-$value} ;;
-      extensions) [[ $selected == 1 ]] || extensions=$value ;;
+        repo) repo=${repo:-$value} ;;
+        ref) ref=${ref:-$value} ;;
+        extensions) [[ $selected == 1 ]] || extensions=$value ;;
       esac
     done <"$metadata"
   else
@@ -90,6 +101,7 @@ HELP
       return 1
     }
   fi
+
   repo=${repo:-https://github.com/adnoctem/libsh.git}
   ref=${ref:-main}
   [[ $repo != -* && $ref != -* && $repo != *[[:cntrl:]]* && $ref != *[[:cntrl:]]* ]] || return 2
@@ -105,6 +117,7 @@ HELP
   commit=$(git -C "$work/upstream" rev-parse FETCH_HEAD) || return 1
   git -C "$work/upstream" cat-file -e "$commit:lib/lib.sh" || return 1
   local -a paths=(lib)
+
   for name in ${extensions//,/ }; do
     git -C "$work/upstream" cat-file -e "$commit:extensions/lib$name.sh" || {
       printf 'libtree: unavailable addon: %s\n' "$name" >&2
@@ -112,8 +125,10 @@ HELP
     }
     paths+=("extensions/lib$name.sh")
   done
+
   git -C "$work/upstream" ls-tree -r "$commit" -- "${paths[@]}" >"$work/entries" || return 1
   git -C "$work/upstream" read-tree --empty || return 1
+
   while IFS= read -r line; do
     read -r mode type oid path <<<"$line"
     [[ $type == blob && ($mode == 100644 || $mode == 100755) &&
@@ -123,14 +138,16 @@ HELP
     }
     git -C "$work/upstream" update-index --add --cacheinfo "$mode,$oid,$path" || return 1
   done <"$work/entries"
+
   printf 'repo=%s\nref=%s\nextensions=%s\ncommit=%s\n' "$repo" "$ref" "$extensions" "$commit" >"$work/metadata"
   oid=$(git -C "$work/upstream" hash-object -w "$work/metadata") || return 1
   git -C "$work/upstream" update-index --add --cacheinfo "100644,$oid,.libsh-vendor" || return 1
   tree=$(git -C "$work/upstream" write-tree) || return 1
   snapshot=$(git -C "$work/upstream" -c user.name=libtree -c user.email=libtree@localhost commit-tree "$tree" -m "Vendor libsh $commit") || return 1
+
   case $action in
-  pull) git subtree add --prefix="$destination" --squash "$work/upstream" "$snapshot" ;;
-  update) git subtree pull --prefix="$destination" --squash "$work/upstream" "$snapshot" ;;
+    pull) git subtree add --prefix="$destination" --squash "$work/upstream" "$snapshot" ;;
+    update) git subtree pull --prefix="$destination" --squash "$work/upstream" "$snapshot" ;;
   esac
 )
 

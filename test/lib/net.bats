@@ -1,45 +1,56 @@
 #!/usr/bin/env bats
 
 setup() {
-	REPO_ROOT=${REPO_ROOT:-$(git rev-parse --show-toplevel)}
+  REPO_ROOT=${REPO_ROOT:-$(git rev-parse --show-toplevel)}
 
-	load "$REPO_ROOT/test/bats/plugins/bats-support/load"
-	load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
+  load "$REPO_ROOT/test/bats/plugins/bats-support/load"
+  load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
 
-	source "$REPO_ROOT/lib/lib.sh"
+  source "$REPO_ROOT/lib/lib.sh"
 
-	TEST_TMP=$(mktemp -d)
-	ORIGINAL_PATH="$PATH"
-	mkdir -p "$TEST_TMP/bin"
-	export PATH="$TEST_TMP/bin:$PATH"
+  TEST_TMP=$(mktemp -d)
+  ORIGINAL_PATH="$PATH"
+  mkdir -p "$TEST_TMP/bin"
+  export PATH="$TEST_TMP/bin:$PATH"
 
-	# Default every test to a faked non-Darwin 'uname', so the Linux-mocked
-	# tests (fake 'ip', etc.) are deterministic regardless of which CI
-	# platform actually runs them -- without this, they only pass by
-	# accident on Linux runners and fail for real on macOS ones, since the
-	# function would then correctly take the real Darwin branch and talk
-	# to the real 'route'/'ifconfig' instead of the installed fakes.
-	# Darwin-specific tests override this via fake_uname_darwin below.
-	cat >"$TEST_TMP/bin/uname" <<-'FAKE'
+  # Default every test to a faked non-Darwin 'uname', so the Linux-mocked
+  # tests (fake 'ip', etc.) are deterministic regardless of which CI
+  # platform actually runs them -- without this, they only pass by
+  # accident on Linux runners and fail for real on macOS ones, since the
+  # function would then correctly take the real Darwin branch and talk
+  # to the real 'route'/'ifconfig' instead of the installed fakes.
+  # Darwin-specific tests override this via fake_uname_darwin below.
+  cat >"$TEST_TMP/bin/uname" <<-'FAKE'
 		#!/usr/bin/env bash
 		echo "Linux"
 	FAKE
-	chmod +x "$TEST_TMP/bin/uname"
+  chmod +x "$TEST_TMP/bin/uname"
 }
 
 teardown() {
-	export PATH="$ORIGINAL_PATH"
-	[[ -n ${TEST_TMP:-} ]] && rm -rf "$TEST_TMP"
+  export PATH="$ORIGINAL_PATH"
+  [[ -n ${TEST_TMP:-} ]] && rm -rf "$TEST_TMP"
 }
 
 # Install a fake 'nc' that fails 'fail_times' calls before succeeding, so
 # tests exercise the retry loop without depending on real network state. Every
 # invocation's arguments are appended to nc-args.log, so callers of
 # lib::net::tcp_dsn_probe can assert the host/port it actually resolved.
+#######################################
+# Install a netcat fixture that fails a configured number of attempts.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   1 - Failed attempts before success (optional, default 0)
+# Outputs:
+#   Executable fixture on disk; command errors to stderr.
+# Returns:
+#   The chmod status.
+#######################################
 install_fake_nc() {
-	local fail_times=${1:-0}
+  local fail_times=${1:-0}
 
-	cat >"$TEST_TMP/bin/nc" <<-FAKE
+  cat >"$TEST_TMP/bin/nc" <<-FAKE
 		#!/usr/bin/env bash
 		echo "\$*" >>"$TEST_TMP/nc-args.log"
 		count_file="$TEST_TMP/nc-calls"
@@ -48,30 +59,42 @@ install_fake_nc() {
 		echo "\$count" >"\$count_file"
 		[[ \$count -gt $fail_times ]]
 	FAKE
-	chmod +x "$TEST_TMP/bin/nc"
+  chmod +x "$TEST_TMP/bin/nc"
 }
 
 # Install a fake 'trurl' that answers the two '--get' formats
 # lib::net::tcp_dsn_probe uses, for a fixed host/port.
+#######################################
+# Install a URL-tool fixture with a fixed host and port.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   1 - Host to return
+#   2 - Port to return
+# Outputs:
+#   Executable fixture on disk; command errors to stderr.
+# Returns:
+#   The chmod status.
+#######################################
 install_fake_trurl() {
-	local host=${1} port=${2}
+  local host=${1} port=${2}
 
-	cat >"$TEST_TMP/bin/trurl" <<-FAKE
+  cat >"$TEST_TMP/bin/trurl" <<-FAKE
 		#!/usr/bin/env bash
 		case "\$3" in
 		'{host}') echo "$host" ;;
 		'{port}') echo "$port" ;;
 		esac
 	FAKE
-	chmod +x "$TEST_TMP/bin/trurl"
+  chmod +x "$TEST_TMP/bin/trurl"
 }
 
 @test "endpoint parser handles encoded userinfo, paths, queries, IPv4 and IPv6" {
-	local uri host='' port='' expected
-	while IFS='|' read -r uri expected; do
-		lib::net::endpoint_from_uri uri host port --default-port 5432
-		[[ "$host:$port" == "$expected" ]]
-	done <<-'CASES'
+  local uri host='' port='' expected
+  while IFS='|' read -r uri expected; do
+    lib::net::endpoint_from_uri uri host port --default-port 5432
+    [[ "$host:$port" == "$expected" ]]
+  done <<-'CASES'
 		postgres://user:p%40ss%3A%2F%3F%23@db.example:05432/app?host=evil:9#fragment|db.example:5432
 		mysql://127.0.0.1/db|127.0.0.1:5432
 		postgresql://[::1]:65535/db|::1:65535
@@ -84,14 +107,14 @@ install_fake_trurl() {
 }
 
 @test "endpoint parser rejects unsupported authorities and leaves both outputs unchanged" {
-	local uri host=oldhost port=oldport
-	while IFS= read -r uri; do
-		if lib::net::endpoint_from_uri uri host port --default-port 5432; then
-			printf 'Unexpected acceptance: %s\n' "$uri"
-			return 1
-		fi
-		[[ $host == oldhost && $port == oldport ]]
-	done <<-'CASES'
+  local uri host=oldhost port=oldport
+  while IFS= read -r uri; do
+    if lib::net::endpoint_from_uri uri host port --default-port 5432; then
+      printf 'Unexpected acceptance: %s\n' "$uri"
+      return 1
+    fi
+    [[ $host == oldhost && $port == oldport ]]
+  done <<-'CASES'
 		db:5432
 		1postgres://db
 		postgres:///db
@@ -130,95 +153,106 @@ install_fake_trurl() {
 }
 
 @test "endpoint parser validates references, defaults and unset input under strict mode" {
-	local uri='postgres://db:5432' host=old port=old
-	run lib::net::endpoint_from_uri uri host host
-	assert_failure 2
-	run lib::net::endpoint_from_uri uri uri port
-	assert_failure 2
-	run lib::net::endpoint_from_uri uri host port --default-port 0
-	assert_failure 2
-	uri='postgres://db'
-	run lib::net::endpoint_from_uri uri host port
-	assert_failure 2
-	run bash -uc 'source "$1/lib/lib.sh"; if lib::net::endpoint_from_uri missing host port; then exit 1; fi; echo survived' bash "$REPO_ROOT"
-	assert_success
-	assert_output --partial survived
+  local uri='postgres://db:5432' host=old port=old
+  run lib::net::endpoint_from_uri uri host host
+  assert_failure 2
+  run lib::net::endpoint_from_uri uri uri port
+  assert_failure 2
+  run lib::net::endpoint_from_uri uri host port --default-port 0
+  assert_failure 2
+  uri='postgres://db'
+  run lib::net::endpoint_from_uri uri host port
+  assert_failure 2
+  run bash -uc 'source "$1/lib/lib.sh"; if lib::net::endpoint_from_uri missing host port; then exit 1; fi; echo survived' bash "$REPO_ROOT"
+  assert_success
+  assert_output --partial survived
 }
 
+#######################################
+# Install a sleep fixture that records calls and returns a chosen status.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   1 - Exit status (optional, default 0)
+# Outputs:
+#   Executable fixture on disk; command errors to stderr.
+# Returns:
+#   The chmod status.
+#######################################
 install_fake_sleep() {
-	cat >"$TEST_TMP/bin/sleep" <<-FAKE
+  cat >"$TEST_TMP/bin/sleep" <<-FAKE
 		#!/usr/bin/env bash
 		printf '%s\n' "\$*" >>"$TEST_TMP/sleep-calls"
 		exit ${1:-0}
 	FAKE
-	chmod +x "$TEST_TMP/bin/sleep"
+  chmod +x "$TEST_TMP/bin/sleep"
 }
 
 @test "tcp_wait counts attempts and sleeps exactly, returning on exhaustion" {
-	install_fake_nc 999
-	install_fake_sleep
-	if lib::net::tcp_wait db 5432 --attempts 3 --timeout 2 --interval 4; then return 1; fi
-	[[ $(cat "$TEST_TMP/nc-calls") == 3 ]]
-	[[ $(wc -l <"$TEST_TMP/sleep-calls") -eq 2 ]]
-	[[ $(head -1 "$TEST_TMP/sleep-calls") == 4 ]]
-	[[ $(head -1 "$TEST_TMP/nc-args.log") == '-z -w2 db 5432' ]]
+  install_fake_nc 999
+  install_fake_sleep
+  if lib::net::tcp_wait db 5432 --attempts 3 --timeout 2 --interval 4; then return 1; fi
+  [[ $(cat "$TEST_TMP/nc-calls") == 3 ]]
+  [[ $(wc -l <"$TEST_TMP/sleep-calls") -eq 2 ]]
+  [[ $(head -1 "$TEST_TMP/sleep-calls") == 4 ]]
+  [[ $(head -1 "$TEST_TMP/nc-args.log") == '-z -w2 db 5432' ]]
 }
 
 @test "tcp_wait stops at delayed success and skips sleep for zero interval" {
-	install_fake_nc 2
-	install_fake_sleep
-	lib::net::tcp_wait ::1 05432 --attempts 5 --interval 0
-	[[ $(cat "$TEST_TMP/nc-calls") == 3 && ! -e $TEST_TMP/sleep-calls ]]
+  install_fake_nc 2
+  install_fake_sleep
+  lib::net::tcp_wait ::1 05432 --attempts 5 --interval 0
+  [[ $(cat "$TEST_TMP/nc-calls") == 3 && ! -e $TEST_TMP/sleep-calls ]]
 }
 
 @test "tcp_wait uses the macOS TCP connection timeout" {
-	install_fake_nc 0
-	install_fake_sleep
-	uname() { printf 'Darwin\n'; }
-	lib::net::tcp_wait db 5432 --timeout 3
-	[[ $(cat "$TEST_TMP/nc-args.log") == '-z -w3 -G 3 db 5432' ]]
+  install_fake_nc 0
+  install_fake_sleep
+  uname() { printf 'Darwin\n'; }
+  lib::net::tcp_wait db 5432 --timeout 3
+  [[ $(cat "$TEST_TMP/nc-args.log") == '-z -w3 -G 3 db 5432' ]]
 }
 
 @test "tcp_wait immediate success and single failure never sleep" {
-	install_fake_nc 0
-	install_fake_sleep
-	lib::net::tcp_wait db 5432 --attempts 1
-	[[ ! -e $TEST_TMP/sleep-calls ]]
-	install_fake_nc 999
-	if lib::net::tcp_wait db 5432 --attempts 1; then return 1; fi
-	[[ ! -e $TEST_TMP/sleep-calls ]]
+  install_fake_nc 0
+  install_fake_sleep
+  lib::net::tcp_wait db 5432 --attempts 1
+  [[ ! -e $TEST_TMP/sleep-calls ]]
+  install_fake_nc 999
+  if lib::net::tcp_wait db 5432 --attempts 1; then return 1; fi
+  [[ ! -e $TEST_TMP/sleep-calls ]]
 }
 
 @test "tcp_wait validates inputs and dependencies before connecting" {
-	install_fake_nc 0
-	install_fake_sleep
-	local flag value
-	for flag in --attempts --timeout --interval; do
-		for value in -1 '1+1' 99999999999999999999 ''; do
-			run lib::net::tcp_wait db 5432 "$flag" "$value"
-			assert_failure 2
-		done
-	done
-	run lib::net::tcp_wait -bad 5432
-	assert_failure 2
-	run lib::net::tcp_wait db 65536
-	assert_failure 2
-	run lib::net::tcp_wait db 5432 --attempts 0
-	assert_failure 2
-	run lib::net::tcp_wait db 5432 --timeout 0
-	assert_failure 2
-	run lib::net::tcp_wait db 5432 --interval 1 --interval 1
-	assert_failure 2
-	[[ ! -e $TEST_TMP/nc-calls ]]
-	mkdir "$TEST_TMP/empty-path"
-	PATH="$TEST_TMP/empty-path" run lib::net::tcp_wait db 5432
-	assert_failure 1
+  install_fake_nc 0
+  install_fake_sleep
+  local flag value
+  for flag in --attempts --timeout --interval; do
+    for value in -1 '1+1' 99999999999999999999 ''; do
+      run lib::net::tcp_wait db 5432 "$flag" "$value"
+      assert_failure 2
+    done
+  done
+  run lib::net::tcp_wait -bad 5432
+  assert_failure 2
+  run lib::net::tcp_wait db 65536
+  assert_failure 2
+  run lib::net::tcp_wait db 5432 --attempts 0
+  assert_failure 2
+  run lib::net::tcp_wait db 5432 --timeout 0
+  assert_failure 2
+  run lib::net::tcp_wait db 5432 --interval 1 --interval 1
+  assert_failure 2
+  [[ ! -e $TEST_TMP/nc-calls ]]
+  mkdir "$TEST_TMP/empty-path"
+  PATH="$TEST_TMP/empty-path" run lib::net::tcp_wait db 5432
+  assert_failure 1
 }
 
 @test "tcp_wait stops on sleep failure and allows strict-mode cleanup" {
-	install_fake_nc 999
-	install_fake_sleep 1
-	run bash -c '
+  install_fake_nc 999
+  install_fake_sleep 1
+  run bash -c '
 		set -euo pipefail
 		source "$1/lib/lib.sh"
 		before=$(set +o)
@@ -226,73 +260,73 @@ install_fake_sleep() {
 		[[ $(set +o) == "$before" ]]
 		echo cleanup
 	' bash "$REPO_ROOT"
-	assert_success
-	assert_output --partial cleanup
-	[[ $(cat "$TEST_TMP/nc-calls") == 1 ]]
+  assert_success
+  assert_output --partial cleanup
+  [[ $(cat "$TEST_TMP/nc-calls") == 1 ]]
 }
 
 @test "tcp_wait returns before connecting if platform discovery fails" {
-	install_fake_nc 0
-	install_fake_sleep
-	uname() { return 1; }
-	if lib::net::tcp_wait db 5432; then return 1; fi
-	[[ ! -e $TEST_TMP/nc-calls && ! -e $TEST_TMP/sleep-calls ]]
+  install_fake_nc 0
+  install_fake_sleep
+  uname() { return 1; }
+  if lib::net::tcp_wait db 5432; then return 1; fi
+  [[ ! -e $TEST_TMP/nc-calls && ! -e $TEST_TMP/sleep-calls ]]
 }
 
 @test "new parser and wait keep URI credentials out of diagnostics and helper argv" {
-	install_fake_nc 0
-	install_fake_sleep
-	local uri='postgres://syntheticUser:syntheticPassword@db:5432/app' host='' port=''
-	lib::net::endpoint_from_uri uri host port >"$TEST_TMP/out" 2>"$TEST_TMP/err"
-	lib::net::tcp_wait "$host" "$port" >>"$TEST_TMP/out" 2>>"$TEST_TMP/err"
-	uri='postgres://syntheticUser:syntheticPassword@db:bad/app'
-	if lib::net::endpoint_from_uri uri host port >>"$TEST_TMP/out" 2>>"$TEST_TMP/err"; then return 1; fi
-	run grep -E 'syntheticUser|syntheticPassword|postgres://' "$TEST_TMP/out" "$TEST_TMP/err" "$TEST_TMP/nc-args.log"
-	assert_failure 1
+  install_fake_nc 0
+  install_fake_sleep
+  local uri='postgres://syntheticUser:syntheticPassword@db:5432/app' host='' port=''
+  lib::net::endpoint_from_uri uri host port >"$TEST_TMP/out" 2>"$TEST_TMP/err"
+  lib::net::tcp_wait "$host" "$port" >>"$TEST_TMP/out" 2>>"$TEST_TMP/err"
+  uri='postgres://syntheticUser:syntheticPassword@db:bad/app'
+  if lib::net::endpoint_from_uri uri host port >>"$TEST_TMP/out" 2>>"$TEST_TMP/err"; then return 1; fi
+  run grep -E 'syntheticUser|syntheticPassword|postgres://' "$TEST_TMP/out" "$TEST_TMP/err" "$TEST_TMP/nc-args.log"
+  assert_failure 1
 }
 
 # lib::net::tcp_probe
 @test "lib::net::tcp_probe succeeds immediately when the port is open" {
-	install_fake_nc 0
+  install_fake_nc 0
 
-	run lib::net::tcp_probe 127.0.0.1 1234
+  run lib::net::tcp_probe 127.0.0.1 1234
 
-	assert_success
-	assert_output --partial "127.0.0.1:1234 connection established"
+  assert_success
+  assert_output --partial "127.0.0.1:1234 connection established"
 }
 
 @test "lib::net::tcp_probe retries until the port opens" {
-	install_fake_nc 2
+  install_fake_nc 2
 
-	run lib::net::tcp_probe 127.0.0.1 1234 "" 5 1
+  run lib::net::tcp_probe 127.0.0.1 1234 "" 5 1
 
-	assert_success
-	assert_output --partial "connection established"
+  assert_success
+  assert_output --partial "connection established"
 }
 
 @test "lib::net::tcp_probe exits 1 after exhausting its retry budget" {
-	install_fake_nc 999
+  install_fake_nc 999
 
-	run lib::net::tcp_probe 127.0.0.1 1234 "" 2 1
+  run lib::net::tcp_probe 127.0.0.1 1234 "" 2 1
 
-	assert_failure 1
-	assert_output --partial "FATAL: could not reach 127.0.0.1:1234"
+  assert_failure 1
+  assert_output --partial "FATAL: could not reach 127.0.0.1:1234"
 }
 
 @test "lib::net::tcp_probe uses the given label in output" {
-	install_fake_nc 0
+  install_fake_nc 0
 
-	run lib::net::tcp_probe 127.0.0.1 1234 "database"
+  run lib::net::tcp_probe 127.0.0.1 1234 "database"
 
-	assert_output --partial "Checking for an active database connection"
+  assert_output --partial "Checking for an active database connection"
 }
 
 # lib::net::tcp_dsn_probe
 @test "lib::net::tcp_dsn_probe fails cleanly without trurl on PATH" {
-	PATH="$TEST_TMP/bin" run lib::net::tcp_dsn_probe "mysql://user:pass@127.0.0.1:3306/db" 3306
+  PATH="$TEST_TMP/bin" run lib::net::tcp_dsn_probe "mysql://user:pass@127.0.0.1:3306/db" 3306
 
-	assert_failure 1
-	assert_output --partial "requires 'trurl'"
+  assert_failure 1
+  assert_output --partial "requires 'trurl'"
 }
 
 # tcp_dsn_probe's default label is just the parsed host (see
@@ -301,34 +335,34 @@ install_fake_sleep() {
 # that message, so these assert the port trurl resolved via the fake nc's
 # argument log instead.
 @test "lib::net::tcp_dsn_probe parses host and port with trurl" {
-	install_fake_trurl "127.0.0.1" "3306"
-	install_fake_nc 0
+  install_fake_trurl "127.0.0.1" "3306"
+  install_fake_nc 0
 
-	run lib::net::tcp_dsn_probe "mysql://user:pass@127.0.0.1:3306/db" 5432
+  run lib::net::tcp_dsn_probe "mysql://user:pass@127.0.0.1:3306/db" 5432
 
-	assert_success
-	assert_output --partial "127.0.0.1 connection established"
-	assert_equal "$(cat "$TEST_TMP/nc-args.log")" "-z -w5 127.0.0.1 3306"
+  assert_success
+  assert_output --partial "127.0.0.1 connection established"
+  assert_equal "$(cat "$TEST_TMP/nc-args.log")" "-z -w5 127.0.0.1 3306"
 }
 
 @test "lib::net::tcp_dsn_probe falls back to the default port" {
-	install_fake_trurl "127.0.0.1" ""
-	install_fake_nc 0
+  install_fake_trurl "127.0.0.1" ""
+  install_fake_nc 0
 
-	run lib::net::tcp_dsn_probe "mysql://127.0.0.1/db" 3306
+  run lib::net::tcp_dsn_probe "mysql://127.0.0.1/db" 3306
 
-	assert_success
-	assert_output --partial "127.0.0.1 connection established"
-	assert_equal "$(cat "$TEST_TMP/nc-args.log")" "-z -w5 127.0.0.1 3306"
+  assert_success
+  assert_output --partial "127.0.0.1 connection established"
+  assert_equal "$(cat "$TEST_TMP/nc-args.log")" "-z -w5 127.0.0.1 3306"
 }
 
 @test "lib::net::tcp_dsn_probe uses the host as the default label" {
-	install_fake_trurl "db.internal" "5432"
-	install_fake_nc 0
+  install_fake_trurl "db.internal" "5432"
+  install_fake_nc 0
 
-	run lib::net::tcp_dsn_probe "postgres://db.internal:5432/app" 5432
+  run lib::net::tcp_dsn_probe "postgres://db.internal:5432/app" 5432
 
-	assert_output --partial "Checking for an active db.internal connection"
+  assert_output --partial "Checking for an active db.internal connection"
 }
 
 # --- Adapter resolution / address lookup mocks ---------------------------
@@ -337,21 +371,48 @@ install_fake_sleep() {
 # invocations lib/net.sh's OS-resolution functions make -- confirmed
 # via grep against the real implementation, not guessed.
 
+#######################################
+# Install a uname fixture reporting Darwin on any host platform.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   None
+# Outputs:
+#   Executable fixture on disk; command errors to stderr.
+# Returns:
+#   The chmod status.
+#######################################
 fake_uname_darwin() {
-	cat >"$TEST_TMP/bin/uname" <<-'FAKE'
+  cat >"$TEST_TMP/bin/uname" <<-'FAKE'
 		#!/usr/bin/env bash
 		echo "Darwin"
 	FAKE
-	chmod +x "$TEST_TMP/bin/uname"
+  chmod +x "$TEST_TMP/bin/uname"
 }
 
 # iface, ipv4 CIDR, IPv4 gateway, IPv6 global CIDR (optional), IPv6
 # link-local CIDR, IPv6 gateway (optional)
+#######################################
+# Install a Linux network-tool fixture with configured addresses and routes.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   1 - Interface name
+#   2 - IPv4 CIDR
+#   3 - IPv4 gateway
+#   4 - Global IPv6 CIDR (optional)
+#   5 - Link-local IPv6 CIDR (optional, default fe80::50/64)
+#   6 - IPv6 gateway (optional)
+# Outputs:
+#   Executable fixture on disk; command errors to stderr.
+# Returns:
+#   The chmod status.
+#######################################
 install_fake_ip() {
-	local iface=$1 ipv4_cidr=$2 gw4=$3 ipv6_global_cidr=${4:-} \
-		ipv6_ll_cidr=${5:-fe80::50/64} gw6=${6:-}
+  local iface=$1 ipv4_cidr=$2 gw4=$3 ipv6_global_cidr=${4:-} \
+    ipv6_ll_cidr=${5:-fe80::50/64} gw6=${6:-}
 
-	cat >"$TEST_TMP/bin/ip" <<-FAKE
+  cat >"$TEST_TMP/bin/ip" <<-FAKE
 		#!/usr/bin/env bash
 		case "\$*" in
 		"-4 route show default")
@@ -374,29 +435,57 @@ install_fake_ip() {
 			;;
 		esac
 	FAKE
-	chmod +x "$TEST_TMP/bin/ip"
+  chmod +x "$TEST_TMP/bin/ip"
 }
 
 # Two default routes at different metrics, to exercise the lowest-metric
 # selection default_adapter is documented to do.
+#######################################
+# Install a route fixture with two default routes and different metrics.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   None
+# Outputs:
+#   Executable fixture on disk; command errors to stderr.
+# Returns:
+#   The chmod status.
+#######################################
 install_fake_ip_multi_route() {
-	cat >"$TEST_TMP/bin/ip" <<-'FAKE'
+  cat >"$TEST_TMP/bin/ip" <<-'FAKE'
 		#!/usr/bin/env bash
 		if [[ "$*" == "-4 route show default" ]]; then
 			echo "default via 10.0.0.1 dev eth1 proto dhcp metric 200"
 			echo "default via 192.168.1.1 dev eth0 proto dhcp metric 100"
 		fi
 	FAKE
-	chmod +x "$TEST_TMP/bin/ip"
+  chmod +x "$TEST_TMP/bin/ip"
 }
 
 # iface, IPv4 CIDR, IPv4 gateway, hex netmask, MAC, IPv6 CIDR (optional,
 # non-link-local), IPv6 link-local CIDR
+#######################################
+# Install macOS route and interface fixtures on any host platform.
+# Globals:
+#   TEST_TMP (read)
+# Arguments:
+#   1 - Interface name
+#   2 - IPv4 CIDR
+#   3 - IPv4 gateway
+#   4 - Hex subnet mask
+#   5 - MAC address
+#   6 - IPv6 CIDR (optional)
+#   7 - Link-local IPv6 CIDR (optional, default fe80::50)
+# Outputs:
+#   Executable fixtures on disk; command errors to stderr.
+# Returns:
+#   The final chmod status.
+#######################################
 install_fake_darwin_tools() {
-	local iface=$1 ipv4_cidr=$2 gw4=$3 hex_mask=$4 mac=$5 \
-		ipv6_cidr=${6:-} ipv6_ll_cidr=${7:-fe80::50}
+  local iface=$1 ipv4_cidr=$2 gw4=$3 hex_mask=$4 mac=$5 \
+    ipv6_cidr=${6:-} ipv6_ll_cidr=${7:-fe80::50}
 
-	cat >"$TEST_TMP/bin/route" <<-FAKE
+  cat >"$TEST_TMP/bin/route" <<-FAKE
 		#!/usr/bin/env bash
 		if [[ "\$*" == "-n get default" ]]; then
 			echo "   route to: default"
@@ -405,15 +494,15 @@ install_fake_darwin_tools() {
 			echo "  interface: $iface"
 		fi
 	FAKE
-	chmod +x "$TEST_TMP/bin/route"
+  chmod +x "$TEST_TMP/bin/route"
 
-	cat >"$TEST_TMP/bin/ipconfig" <<-FAKE
+  cat >"$TEST_TMP/bin/ipconfig" <<-FAKE
 		#!/usr/bin/env bash
 		[[ "\$1" == "getifaddr" && "\$2" == "$iface" ]] && echo "${ipv4_cidr%%/*}"
 	FAKE
-	chmod +x "$TEST_TMP/bin/ipconfig"
+  chmod +x "$TEST_TMP/bin/ipconfig"
 
-	cat >"$TEST_TMP/bin/ifconfig" <<-FAKE
+  cat >"$TEST_TMP/bin/ifconfig" <<-FAKE
 		#!/usr/bin/env bash
 		[[ "\$1" != "$iface" ]] && exit 1
 		echo "$iface: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500"
@@ -422,299 +511,299 @@ install_fake_darwin_tools() {
 		[[ -n "$ipv6_cidr" ]] && echo "inet6 ${ipv6_cidr%%/*} prefixlen ${ipv6_cidr##*/} scopeid 0x0"
 		echo "inet6 $ipv6_ll_cidr%$iface prefixlen 64 scopeid 0x4"
 	FAKE
-	chmod +x "$TEST_TMP/bin/ifconfig"
+  chmod +x "$TEST_TMP/bin/ifconfig"
 }
 
 # lib::net::default_adapter
 @test "lib::net::default_adapter resolves the interface from the default route" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::default_adapter
+  run lib::net::default_adapter
 
-	assert_success
-	assert_output "eth0"
+  assert_success
+  assert_output "eth0"
 }
 
 @test "lib::net::default_adapter picks the lowest-metric route" {
-	install_fake_ip_multi_route
+  install_fake_ip_multi_route
 
-	run lib::net::default_adapter
+  run lib::net::default_adapter
 
-	assert_success
-	assert_output "eth0"
+  assert_success
+  assert_output "eth0"
 }
 
 @test "lib::net::default_adapter fails cleanly with no default route" {
-	cat >"$TEST_TMP/bin/ip" <<-'FAKE'
+  cat >"$TEST_TMP/bin/ip" <<-'FAKE'
 		#!/usr/bin/env bash
 		exit 1
 	FAKE
-	chmod +x "$TEST_TMP/bin/ip"
+  chmod +x "$TEST_TMP/bin/ip"
 
-	run lib::net::default_adapter
+  run lib::net::default_adapter
 
-	assert_failure 1
-	assert_output --partial "No default network adapter found"
+  assert_failure 1
+  assert_output --partial "No default network adapter found"
 }
 
 @test "lib::net::default_adapter resolves via 'route' on Darwin" {
-	fake_uname_darwin
-	install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
+  fake_uname_darwin
+  install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
 
-	run lib::net::default_adapter
+  run lib::net::default_adapter
 
-	assert_success
-	assert_output "en0"
+  assert_success
+  assert_output "en0"
 }
 
 # lib::net::ip_address
 @test "lib::net::ip_address resolves the IPv4 address" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::ip_address ipv4 eth0
+  run lib::net::ip_address ipv4 eth0
 
-	assert_success
-	assert_output "192.168.1.50"
+  assert_success
+  assert_output "192.168.1.50"
 }
 
 @test "lib::net::ip_address prefers a global IPv6 address over link-local" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1 2001:db8::50/64
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1 2001:db8::50/64
 
-	run lib::net::ip_address ipv6 eth0
+  run lib::net::ip_address ipv6 eth0
 
-	assert_success
-	assert_output "2001:db8::50"
+  assert_success
+  assert_output "2001:db8::50"
 }
 
 @test "lib::net::ip_address falls back to link-local when no global IPv6 address exists" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::ip_address ipv6 eth0
+  run lib::net::ip_address ipv6 eth0
 
-	assert_success
-	assert_output "fe80::50"
+  assert_success
+  assert_output "fe80::50"
 }
 
 @test "lib::net::ip_address auto-resolves the adapter when none is given" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::ip_address ipv4
+  run lib::net::ip_address ipv4
 
-	assert_success
-	assert_output "192.168.1.50"
+  assert_success
+  assert_output "192.168.1.50"
 }
 
 @test "lib::net::ip_address resolves via 'ipconfig'/'ifconfig' on Darwin" {
-	fake_uname_darwin
-	install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff 2001:db8::50/64
+  fake_uname_darwin
+  install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff 2001:db8::50/64
 
-	run lib::net::ip_address ipv4 en0
+  run lib::net::ip_address ipv4 en0
 
-	assert_success
-	assert_output "10.0.1.50"
+  assert_success
+  assert_output "10.0.1.50"
 }
 
 @test "lib::net::ip_address strips the zone-id suffix from a Darwin link-local address" {
-	fake_uname_darwin
-	install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
+  fake_uname_darwin
+  install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
 
-	run lib::net::ip_address ipv6 en0
+  run lib::net::ip_address ipv6 en0
 
-	assert_success
-	refute_output --partial "%"
+  assert_success
+  refute_output --partial "%"
 }
 
 # lib::net::subnet_mask
 @test "lib::net::subnet_mask converts the adapter's CIDR to dotted-decimal" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::subnet_mask eth0
+  run lib::net::subnet_mask eth0
 
-	assert_success
-	assert_output "255.255.255.0"
+  assert_success
+  assert_output "255.255.255.0"
 }
 
 @test "lib::net::subnet_mask converts a Darwin hex netmask to dotted-decimal" {
-	fake_uname_darwin
-	install_fake_darwin_tools en0 10.0.1.50/20 10.0.1.1 0xfffff000 aa:bb:cc:dd:ee:ff
+  fake_uname_darwin
+  install_fake_darwin_tools en0 10.0.1.50/20 10.0.1.1 0xfffff000 aa:bb:cc:dd:ee:ff
 
-	run lib::net::subnet_mask en0
+  run lib::net::subnet_mask en0
 
-	assert_success
-	assert_output "255.255.240.0"
+  assert_success
+  assert_output "255.255.240.0"
 }
 
 # lib::net::default_gateway
 @test "lib::net::default_gateway resolves the IPv4 gateway" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::default_gateway ipv4 eth0
+  run lib::net::default_gateway ipv4 eth0
 
-	assert_success
-	assert_output "192.168.1.1"
+  assert_success
+  assert_output "192.168.1.1"
 }
 
 @test "lib::net::default_gateway resolves the IPv6 gateway" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1 "" fe80::50/64 fe80::1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1 "" fe80::50/64 fe80::1
 
-	run lib::net::default_gateway ipv6 eth0
+  run lib::net::default_gateway ipv6 eth0
 
-	assert_success
-	assert_output "fe80::1"
+  assert_success
+  assert_output "fe80::1"
 }
 
 @test "lib::net::default_gateway resolves via 'route' on Darwin" {
-	fake_uname_darwin
-	install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
+  fake_uname_darwin
+  install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
 
-	run lib::net::default_gateway ipv4 en0
+  run lib::net::default_gateway ipv4 en0
 
-	assert_success
-	assert_output "10.0.1.1"
+  assert_success
+  assert_output "10.0.1.1"
 }
 
 # lib::net::mac_address
 @test "lib::net::mac_address resolves via /sys/class/net on Linux" {
-	# Genuine ambient-state check, same precedent as test/lib/git.bats
-	# testing against the real repo rather than mocking git -- /sys is a
-	# kernel-virtual filesystem this test can't redirect, and every Linux
-	# CI runner has at least a loopback interface to read. Guarded on the
-	# real filesystem, not the faked 'uname' from setup(): /sys genuinely
-	# doesn't exist on macOS, no matter what 'uname' claims.
-	if [[ ! -d /sys/class/net ]]; then
-		skip "/sys/class/net does not exist on this platform"
-	fi
+  # Genuine ambient-state check, same precedent as test/lib/git.bats
+  # testing against the real repo rather than mocking git -- /sys is a
+  # kernel-virtual filesystem this test can't redirect, and every Linux
+  # CI runner has at least a loopback interface to read. Guarded on the
+  # real filesystem, not the faked 'uname' from setup(): /sys genuinely
+  # doesn't exist on macOS, no matter what 'uname' claims.
+  if [[ ! -d /sys/class/net ]]; then
+    skip "/sys/class/net does not exist on this platform"
+  fi
 
-	run lib::net::mac_address lo
+  run lib::net::mac_address lo
 
-	assert_success
-	assert_output "00:00:00:00:00:00"
+  assert_success
+  assert_output "00:00:00:00:00:00"
 }
 
 @test "lib::net::mac_address resolves via 'ifconfig' on Darwin" {
-	fake_uname_darwin
-	install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
+  fake_uname_darwin
+  install_fake_darwin_tools en0 10.0.1.50/24 10.0.1.1 0xffffff00 aa:bb:cc:dd:ee:ff
 
-	run lib::net::mac_address en0
+  run lib::net::mac_address en0
 
-	assert_success
-	assert_output "aa:bb:cc:dd:ee:ff"
+  assert_success
+  assert_output "aa:bb:cc:dd:ee:ff"
 }
 
 # lib::net::dns_servers
 @test "lib::net::dns_servers reads /etc/resolv.conf" {
-	# Genuine ambient-state check -- /etc/resolv.conf isn't adapter-scoped
-	# or parameterized by this function, so there's nothing to mock; every
-	# CI runner has at least one nameserver configured.
-	run lib::net::dns_servers
+  # Genuine ambient-state check -- /etc/resolv.conf isn't adapter-scoped
+  # or parameterized by this function, so there's nothing to mock; every
+  # CI runner has at least one nameserver configured.
+  run lib::net::dns_servers
 
-	assert_success
-	[[ -n $output ]]
+  assert_success
+  [[ -n $output ]]
 }
 
 # --- Prefix / broadcast / multicast (pure arithmetic, mocked adapter) ----
 
 @test "lib::net::network_prefix computes the IPv4 network address" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::network_prefix ipv4 eth0
+  run lib::net::network_prefix ipv4 eth0
 
-	assert_success
-	assert_output "192.168.1.0"
+  assert_success
+  assert_output "192.168.1.0"
 }
 
 @test "lib::net::network_prefix computes the IPv4 network address for a non-octet-aligned mask" {
-	install_fake_ip eth0 172.26.175.147/20 172.26.160.1
+  install_fake_ip eth0 172.26.175.147/20 172.26.160.1
 
-	run lib::net::network_prefix ipv4 eth0
+  run lib::net::network_prefix ipv4 eth0
 
-	assert_success
-	assert_output "172.26.160.0"
+  assert_success
+  assert_output "172.26.160.0"
 }
 
 @test "lib::net::network_prefix computes the IPv6 network prefix" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1 2001:db8:abcd:1234::1/64
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1 2001:db8:abcd:1234::1/64
 
-	run lib::net::network_prefix ipv6 eth0
+  run lib::net::network_prefix ipv6 eth0
 
-	assert_success
-	assert_output "2001:db8:abcd:1234::"
+  assert_success
+  assert_output "2001:db8:abcd:1234::"
 }
 
 @test "lib::net::network_prefix_cidr appends the CIDR suffix" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::network_prefix_cidr ipv4 eth0
+  run lib::net::network_prefix_cidr ipv4 eth0
 
-	assert_success
-	assert_output "192.168.1.0/24"
+  assert_success
+  assert_output "192.168.1.0/24"
 }
 
 @test "lib::net::network_prefix_cidr works for IPv6" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1 2001:db8:abcd:1234::1/64
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1 2001:db8:abcd:1234::1/64
 
-	run lib::net::network_prefix_cidr ipv6 eth0
+  run lib::net::network_prefix_cidr ipv6 eth0
 
-	assert_success
-	assert_output "2001:db8:abcd:1234::/64"
+  assert_success
+  assert_output "2001:db8:abcd:1234::/64"
 }
 
 @test "lib::net::broadcast_address computes the IPv4 broadcast address" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1
 
-	run lib::net::broadcast_address eth0
+  run lib::net::broadcast_address eth0
 
-	assert_success
-	assert_output "192.168.1.255"
+  assert_success
+  assert_output "192.168.1.255"
 }
 
 @test "lib::net::broadcast_address computes the broadcast address for a non-octet-aligned mask" {
-	install_fake_ip eth0 172.26.175.147/20 172.26.160.1
+  install_fake_ip eth0 172.26.175.147/20 172.26.160.1
 
-	run lib::net::broadcast_address eth0
+  run lib::net::broadcast_address eth0
 
-	assert_success
-	assert_output "172.26.175.255"
+  assert_success
+  assert_output "172.26.175.255"
 }
 
 @test "lib::net::multicast_address computes the RFC 4291 solicited-node address" {
-	install_fake_ip eth0 192.168.1.50/24 192.168.1.1 "" fe80::215:5dff:fea7:c0f1/64
+  install_fake_ip eth0 192.168.1.50/24 192.168.1.1 "" fe80::215:5dff:fea7:c0f1/64
 
-	run lib::net::multicast_address eth0
+  run lib::net::multicast_address eth0
 
-	assert_success
-	assert_output "ff02::1:ffa7:c0f1"
+  assert_success
+  assert_output "ff02::1:ffa7:c0f1"
 }
 
 # --- is_ipv4 / is_ipv6 (pure validation, table-driven) --------------------
 
 @test "lib::net::is_ipv4 accepts valid addresses" {
-	for addr in "192.168.1.1" "0.0.0.0" "255.255.255.255" "1.2.3.4" "10.0.0.1"; do
-		run lib::net::is_ipv4 "$addr"
-		assert_success
-	done
+  for addr in "192.168.1.1" "0.0.0.0" "255.255.255.255" "1.2.3.4" "10.0.0.1"; do
+    run lib::net::is_ipv4 "$addr"
+    assert_success
+  done
 }
 
 @test "lib::net::is_ipv4 rejects invalid addresses" {
-	for addr in "256.1.1.1" "1.1.1" "1.1.1.1.1" "01.1.1.1" "1.2.3.4." ".1.2.3.4" \
-		"1.2.3.abc" "" "1..2.3" "-1.2.3.4" "1.2.3.4 "; do
-		run lib::net::is_ipv4 "$addr"
-		assert_failure
-	done
+  for addr in "256.1.1.1" "1.1.1" "1.1.1.1.1" "01.1.1.1" "1.2.3.4." ".1.2.3.4" \
+    "1.2.3.abc" "" "1..2.3" "-1.2.3.4" "1.2.3.4 "; do
+    run lib::net::is_ipv4 "$addr"
+    assert_failure
+  done
 }
 
 @test "lib::net::is_ipv6 accepts valid addresses" {
-	for addr in "2001:db8::1" "::1" "::" "fe80::1234:5678:9abc:def0" \
-		"1:2:3:4:5:6:7:8" "::ffff:192.168.1.1" "2001:db8:0:0:0:0:0:1"; do
-		run lib::net::is_ipv6 "$addr"
-		assert_success
-	done
+  for addr in "2001:db8::1" "::1" "::" "fe80::1234:5678:9abc:def0" \
+    "1:2:3:4:5:6:7:8" "::ffff:192.168.1.1" "2001:db8:0:0:0:0:0:1"; do
+    run lib::net::is_ipv6 "$addr"
+    assert_success
+  done
 }
 
 @test "lib::net::is_ipv6 rejects invalid addresses" {
-	for addr in "1:2:3:4:5:6:7:8:9" "2001:db8:::1" "2001:db8::1::2" "gggg::1" \
-		"12345::1" "::ffff:999.168.1.1" "" "1:2:3:4:5:6:7" "fe80::1%eth0"; do
-		run lib::net::is_ipv6 "$addr"
-		assert_failure
-	done
+  for addr in "1:2:3:4:5:6:7:8:9" "2001:db8:::1" "2001:db8::1::2" "gggg::1" \
+    "12345::1" "::ffff:999.168.1.1" "" "1:2:3:4:5:6:7" "fe80::1%eth0"; do
+    run lib::net::is_ipv6 "$addr"
+    assert_failure
+  done
 }

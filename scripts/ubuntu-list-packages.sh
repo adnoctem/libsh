@@ -86,6 +86,8 @@ function ubuntu_list_packages::prerequisites() {
 #   2 - "1" to append '=<version>' to each name, "" otherwise
 # Outputs:
 #   One package per line, sorted, to stdout.
+# Returns:
+#   The final logging status; earlier command failures rely on the caller shell.
 #######################################
 function ubuntu_list_packages::exec() {
   local all=${1} with_versions=${2}
@@ -137,7 +139,9 @@ function ubuntu_list_packages::exec() {
 #   OPTS, OPTS_HELP (read)
 #   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage error.
 #######################################

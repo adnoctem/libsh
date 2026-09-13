@@ -34,6 +34,8 @@ function ext::apt::simulate() {
 #   An apt-get simulation on stdin.
 # Outputs:
 #   One package name per line.
+# Returns:
+#   The awk exit status.
 #######################################
 function ext::apt::pending_packages() {
   awk '/^Inst /{print $2}'
@@ -54,6 +56,8 @@ function ext::apt::pending_packages() {
 #   An apt-get simulation on stdin.
 # Outputs:
 #   One package name per line.
+# Returns:
+#   The awk exit status.
 #######################################
 function ext::apt::security_packages() {
   awk '$0 ~ /^Inst / && $0 ~ /-security[ ,)]/ {print $2}'
@@ -69,6 +73,8 @@ function ext::apt::security_packages() {
 #   An apt-get simulation on stdin.
 # Outputs:
 #   The "N upgraded, N newly installed, ..." line, if there is one.
+# Returns:
+#   The awk exit status.
 #######################################
 function ext::apt::summary_line() {
   awk '/^[0-9]+ upgraded/{print; exit}'
@@ -106,6 +112,7 @@ function ext::apt::lists_age_days() {
   # equivalent (this module is Debian/APT-focused, but the timestamp read
   # itself costs nothing to keep portable).
   local mtime
+
   mtime=$(stat -c %Y "$stamp" 2>/dev/null || stat -f %m "$stamp" 2>/dev/null)
   printf '%s' "$((($(date +%s) - mtime) / 86400))"
 }
@@ -116,6 +123,8 @@ function ext::apt::lists_age_days() {
 #   None
 # Arguments:
 #   1 - Package name
+# Outputs:
+#   None
 # Returns:
 #   0 if the package is installed, 1 otherwise.
 #######################################
@@ -132,6 +141,8 @@ function ext::apt::is_installed() {
 # Globals:
 #   None
 # Arguments:
+#   None
+# Outputs:
 #   None
 # Returns:
 #   0 if a reboot is required, 1 otherwise.

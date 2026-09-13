@@ -17,6 +17,8 @@
 #   1 - App name to nest under the base directory (optional)
 # Outputs:
 #   The resolved path to stdout.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::os::config_home() {
   local app=${1:-} base
@@ -45,6 +47,8 @@ function lib::os::config_home() {
 #   1 - App name to nest under the base directory (optional)
 # Outputs:
 #   The resolved path to stdout.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::os::data_home() {
   local app=${1:-} base
@@ -74,6 +78,8 @@ function lib::os::data_home() {
 #   1 - App name to nest under the base directory (optional)
 # Outputs:
 #   The resolved path to stdout.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::os::cache_home() {
   local app=${1:-} base
@@ -102,6 +108,8 @@ function lib::os::cache_home() {
 #   1 - App name to nest under the base directory (optional)
 # Outputs:
 #   The resolved path to stdout.
+# Returns:
+#   The final output command status.
 #######################################
 function lib::os::state_home() {
   local app=${1:-} base
@@ -122,23 +130,38 @@ function lib::os::state_home() {
 
 #######################################
 # Check whether the shell can resolve a command without changing caller state.
-# Globals: PATH (read)
-# Arguments: One command name (including builtins/functions).
-# Outputs: Errors on stderr for incorrect argument count; otherwise none.
-# Returns: 0 available, 1 unavailable/empty, 2 incorrect argument count.
+# Globals:
+#   PATH (read)
+# Arguments:
+#   1 - One command name (including builtins/functions).
+# Outputs:
+#   Errors on stderr for incorrect argument count; otherwise none.
+# Returns:
+#   0 available, 1 unavailable/empty, 2 incorrect argument count.
 #######################################
 function lib::os::is_executable() {
   if [[ $# != 1 ]]; then
     lib::log::red 'is_executable requires one command name.'
     return 2
   fi
+
   [[ -n $1 ]] || return 1
   command -v -- "$1" >/dev/null 2>&1
 }
 
 # Run commands with elevated privileges.
 
+#######################################
 # Check if the current user is root
+# Globals:
+#   EUID (read)
+# Arguments:
+#   None
+# Outputs:
+#   None
+# Returns:
+#   0 for root, 1 otherwise.
+#######################################
 function lib::os::root_check() {
   if [[ $EUID -ne 0 ]]; then
     return 1
@@ -147,7 +170,17 @@ function lib::os::root_check() {
   fi
 }
 
+#######################################
 # Prefix commands with sudo or not
+# Globals:
+#   EUID (read)
+# Arguments:
+#   1+ - Command and its arguments
+# Outputs:
+#   Command stdout and stderr, unchanged.
+# Returns:
+#   The command or sudo exit status.
+#######################################
 function lib::os::root_exec() {
   if [[ $EUID -ne 0 ]]; then
     sudo "$@"
@@ -157,21 +190,28 @@ function lib::os::root_exec() {
 }
 
 #######################################
-# Reload Bash configuration in the current shell. Zsh configuration is not read.
-# Globals: HOME (read); the sourced Bash configuration may change caller state.
-# Arguments: None
-# Outputs: Whatever the Bash configuration prints; invocation errors on stderr.
-# Returns: 0 when absent, otherwise the source status; 2 for unexpected arguments.
+# Reload Bash configuration in the current shell. Zsh configuration is not
+# read.
+# Globals:
+#   HOME (read); the sourced Bash configuration may change caller state.
+# Arguments:
+#   None
+# Outputs:
+#   Whatever the Bash configuration prints; invocation errors on stderr.
+# Returns:
+#   0 when absent, otherwise the source status; 2 for unexpected arguments.
 #######################################
 function lib::os::rc() {
   if [[ $# != 0 ]]; then
     lib::log::red 'rc takes no arguments.'
     return 2
   fi
+
   if [[ -e ${HOME}/.bashrc ]]; then
     # shellcheck disable=SC1090,SC1091 # caller-owned Bash configuration
     source "${HOME}/.bashrc"
     return $?
   fi
+
   return 0
 }

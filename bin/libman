@@ -26,10 +26,14 @@ LM_WORK='' LM_LOCK='' LM_STATE='' LM_SELF=''
 
 #######################################
 # Report an error without depending on the installed library.
-# Globals: None
-# Arguments: message
-# Outputs: stderr
-# Returns: 1
+# Globals:
+#   None
+# Arguments:
+#   1 - message
+# Outputs:
+#   stderr
+# Returns:
+#   1
 #######################################
 __libman_error() {
   printf 'libman: %s\n' "$*" >&2
@@ -38,10 +42,14 @@ __libman_error() {
 
 #######################################
 # Print command and option documentation.
-# Globals: None
-# Arguments: None
-# Outputs: stdout
-# Returns: 0
+# Globals:
+#   None
+# Arguments:
+#   None
+# Outputs:
+#   stdout
+# Returns:
+#   0
 #######################################
 __libman_help() {
   cat <<'HELP'
@@ -85,10 +93,14 @@ HELP
 
 #######################################
 # Resolve a file or directory through symlinks without GNU realpath.
-# Globals: None
-# Arguments: path
-# Outputs: physical absolute path
-# Returns: nonzero if resolution fails
+# Globals:
+#   None
+# Arguments:
+#   1 - path
+# Outputs:
+#   physical absolute path
+# Returns:
+#   nonzero if resolution fails
 #######################################
 __libman_physical() {
   local path=$1 link parent count=0
@@ -110,10 +122,14 @@ __libman_physical() {
 
 #######################################
 # Normalize a destination's parent, preserving its final managed symlink.
-# Globals: None
-# Arguments: absolute path
-# Outputs: normalized path
-# Returns: nonzero for unsafe paths or inaccessible ancestors
+# Globals:
+#   None
+# Arguments:
+#   1 - absolute path
+# Outputs:
+#   normalized path
+# Returns:
+#   nonzero for unsafe paths or inaccessible ancestors
 #######################################
 __libman_destination() {
   local path=$1 parent suffix=''
@@ -146,10 +162,15 @@ __libman_destination() {
 
 #######################################
 # Read single-line metadata as data, including a missing-value default.
-# Globals: None
-# Arguments: path, default
-# Outputs: value
-# Returns: nonzero on malformed metadata
+# Globals:
+#   None
+# Arguments:
+#   1 - Path
+#   2 - Default value
+# Outputs:
+#   value
+# Returns:
+#   nonzero on malformed metadata
 #######################################
 __libman_read() {
   local value='' extra=''
@@ -171,85 +192,90 @@ __libman_read() {
 
 #######################################
 # Parse options and recover the installed command's saved configuration.
-# Globals: LM_* (read/write)
-# Arguments: command arguments
-# Outputs: errors on stderr
-# Returns: nonzero on invalid input
+# Globals:
+#   LM_* (read/write)
+# Arguments:
+#   1+ - Command options
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on invalid input
 #######################################
 __libman_configure() {
   local self_dir root_default bin_default option other saved_bin positional=0
 
   LM_SELF=$(__libman_physical "${BASH_SOURCE[0]}") || return 1
   self_dir=$(dirname -- "$LM_SELF")
+
   if [[ -f $self_dir/format && $(<"$self_dir/format") == libman-v1 ]]; then
     LM_DIR=${LM_DIR:-$(__libman_read "$self_dir/install-dir" '')} || return 1
   fi
 
   while [[ $# -gt 0 ]]; do
     case $1 in
-    -h | --help)
-      __libman_help
-      exit 0
-      ;;
-    -y | --yes)
-      LM_YES=1
-      shift
-      ;;
-    --no-modify-profile)
-      LM_NO_PROFILE=1
-      shift
-      ;;
-    --include-tools)
-      LM_TOOLS=1
-      shift
-      ;;
-    -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir | --extensions)
-      [[ $# -ge 2 && -n $2 ]] || {
-        __libman_error "Missing argument for $1"
-        return 2
-      }
-      option=$1
-      case $option in
-      -v | --version) LM_VERSION=$2 ;;
-      -r | --repo) LM_REPO=$2 ;;
-      -d | --install-dir) LM_DIR=$2 ;;
-      --bin-dir) LM_BIN=$2 ;;
-      --init-shell) LM_SHELL=$2 ;;
-      --tools-dir) LM_TOOLS_DIR=$2 ;;
-      --extensions)
-        LM_EXTENSIONS=$2
-        LM_EXTENSIONS_SET=x
-        LM_EXTENSIONS_FLAG=1
+      -h | --help)
+        __libman_help
+        exit 0
         ;;
-      esac
-      shift 2
-      ;;
-    -p | --profile-targets)
-      __libman_error 'Use --init-shell bash|zsh|auto; profile.d and BASH_ENV are no longer modified.'
-      return 2
-      ;;
-    -*)
-      __libman_error "Unknown option: $1"
-      return 2
-      ;;
-    *)
-      if [[ $LM_COMMAND == extension-add || $LM_COMMAND == extension-remove ]]; then
-        [[ $1 =~ ^[a-z][a-z0-9_]*$ ]] || {
-          __libman_error 'Invalid extension name.'
+      -y | --yes)
+        LM_YES=1
+        shift
+        ;;
+      --no-modify-profile)
+        LM_NO_PROFILE=1
+        shift
+        ;;
+      --include-tools)
+        LM_TOOLS=1
+        shift
+        ;;
+      -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir | --extensions)
+        [[ $# -ge 2 && -n $2 ]] || {
+          __libman_error "Missing argument for $1"
           return 2
         }
-        LM_EXTENSION_ARGS+=" $1"
-        shift
-        continue
-      fi
-      [[ $positional == 0 && ($LM_COMMAND == install || $LM_COMMAND == self-update) ]] || {
-        __libman_error 'Unexpected positional argument.'
+        option=$1
+        case $option in
+          -v | --version) LM_VERSION=$2 ;;
+          -r | --repo) LM_REPO=$2 ;;
+          -d | --install-dir) LM_DIR=$2 ;;
+          --bin-dir) LM_BIN=$2 ;;
+          --init-shell) LM_SHELL=$2 ;;
+          --tools-dir) LM_TOOLS_DIR=$2 ;;
+          --extensions)
+            LM_EXTENSIONS=$2
+            LM_EXTENSIONS_SET=x
+            LM_EXTENSIONS_FLAG=1
+            ;;
+        esac
+        shift 2
+        ;;
+      -p | --profile-targets)
+        __libman_error 'Use --init-shell bash|zsh|auto; profile.d and BASH_ENV are no longer modified.'
         return 2
-      }
-      LM_VERSION=$1
-      positional=1
-      shift
-      ;;
+        ;;
+      -*)
+        __libman_error "Unknown option: $1"
+        return 2
+        ;;
+      *)
+        if [[ $LM_COMMAND == extension-add || $LM_COMMAND == extension-remove ]]; then
+          [[ $1 =~ ^[a-z][a-z0-9_]*$ ]] || {
+            __libman_error 'Invalid extension name.'
+            return 2
+          }
+          LM_EXTENSION_ARGS+=" $1"
+          shift
+          continue
+        fi
+        [[ $positional == 0 && ($LM_COMMAND == install || $LM_COMMAND == self-update) ]] || {
+          __libman_error 'Unexpected positional argument.'
+          return 2
+        }
+        LM_VERSION=$1
+        positional=1
+        shift
+        ;;
     esac
   done
 
@@ -269,6 +295,7 @@ __libman_configure() {
   }
 
   LM_STATE=$LM_DIR.libman
+
   if [[ -e $LM_STATE || -L $LM_STATE ]]; then
     [[ -d $LM_STATE && ! -L $LM_STATE && -f $LM_STATE/format && $(<"$LM_STATE/format") == libman-v1 ]] || {
       __libman_error 'Refusing an unrecognized manager state directory.'
@@ -278,6 +305,7 @@ __libman_configure() {
 
   saved_bin=$(__libman_read "$LM_STATE/bin-dir" "$bin_default") || return 1
   LM_BIN=$(__libman_destination "${LM_BIN:-$saved_bin}") || return $?
+
   if [[ -f $LM_STATE/bin-dir && $LM_BIN != "$saved_bin" ]]; then
     __libman_error 'Uninstall before changing the managed command directory.'
     return 2
@@ -285,6 +313,7 @@ __libman_configure() {
 
   LM_REPO=${LM_REPO:-$(__libman_read "$LM_STATE/current/repo" adnoctem/libsh)} || return 1
   LM_TOOLS=${LM_TOOLS:-$(__libman_read "$LM_STATE/current/include-tools" 0)} || return 1
+
   if [[ $LM_COMMAND != install && $LM_COMMAND != update ]]; then
     [[ $LM_EXTENSIONS_FLAG == 0 ]] || {
       __libman_error '--extensions applies only to install or update.'
@@ -292,6 +321,7 @@ __libman_configure() {
     }
     LM_EXTENSIONS_SET=''
   fi
+
   if [[ -z $LM_EXTENSIONS_SET ]]; then
     LM_EXTENSIONS=$(__libman_read "$LM_STATE/current/extensions-selected" '') || return 1
   else
@@ -306,12 +336,14 @@ __libman_configure() {
     fi
     LM_EXTENSIONS=${LM_EXTENSIONS//,/ }
   fi
+
   [[ -z $LM_EXTENSIONS || $LM_EXTENSIONS =~ ^[a-z][a-z0-9_]*(\ [a-z][a-z0-9_]*)*$ ]] || {
     __libman_error 'Invalid saved extension selection.'
     return 2
   }
   # Normalize and validate saved metadata as strictly as command-line names.
   local selected='' extension
+
   for extension in $LM_EXTENSIONS; do
     [[ $extension =~ ^[a-z][a-z0-9_]*$ ]] || {
       __libman_error 'Invalid saved extension.'
@@ -319,7 +351,9 @@ __libman_configure() {
     }
     [[ " $selected " == *" $extension "* ]] || selected+="${selected:+ }$extension"
   done
+
   LM_EXTENSIONS=$selected
+
   if [[ $LM_COMMAND == extension-add || $LM_COMMAND == extension-remove ]]; then
     [[ -n $LM_EXTENSION_ARGS && -z $LM_VERSION ]] || {
       __libman_error 'Supply addon names without a version; addons use the installed core release.'
@@ -345,6 +379,7 @@ __libman_configure() {
       fi
     done
   fi
+
   LM_TOOLS_DIR=${LM_TOOLS_DIR:-$(__libman_read "$LM_STATE/tools-dir" "$(dirname -- "$LM_DIR")/libsh-tools")} || return 1
   [[ $LM_REPO =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]] || {
     __libman_error 'Invalid release repository.'
@@ -352,6 +387,7 @@ __libman_configure() {
   }
 
   LM_SHELL=${LM_SHELL:-${LIBSH_INIT_SHELL:-}}
+
   if [[ $LM_SHELL == auto ]]; then
     LM_SHELL=${SHELL:-}
     LM_SHELL=${LM_SHELL##*/}
@@ -360,6 +396,7 @@ __libman_configure() {
       return 2
     }
   fi
+
   [[ -z $LM_SHELL || $LM_SHELL == bash || $LM_SHELL == zsh ]] || {
     __libman_error 'Shell must be bash, zsh, or auto.'
     return 2
@@ -378,6 +415,7 @@ __libman_configure() {
     __libman_error 'INCLUDE_TOOLS must be 0 or 1.'
     return 2
   }
+
   if [[ -f $LM_STATE/tools-dir && $LM_TOOLS_DIR != "$(<"$LM_STATE/tools-dir")" ]]; then
     __libman_error 'Uninstall before changing the managed tools directory.'
     return 2
@@ -392,6 +430,7 @@ __libman_configure() {
       }
     done
   done
+
   [[ $LM_DIR != "$LM_BIN" && $LM_TOOLS_DIR != "$LM_DIR" && $LM_TOOLS_DIR != "$LM_STATE" && $LM_TOOLS_DIR != "$LM_BIN" && $LM_BIN != "$LM_STATE" ]] || {
     __libman_error 'Use separate library, tools and command directories.'
     return 2
@@ -400,10 +439,14 @@ __libman_configure() {
 
 #######################################
 # Clean up only this process's staging area and lock.
-# Globals: LM_WORK, LM_LOCK
-# Arguments: None
-# Outputs: errors on stderr
-# Returns: 0
+# Globals:
+#   LM_WORK, LM_LOCK
+# Arguments:
+#   None
+# Outputs:
+#   errors on stderr
+# Returns:
+#   0
 #######################################
 __libman_cleanup() {
   [[ -z $LM_WORK ]] || rm -rf -- "$LM_WORK"
@@ -412,10 +455,14 @@ __libman_cleanup() {
 
 #######################################
 # Acquire a per-installation lock before making changes.
-# Globals: LM_DIR, LM_STATE, LM_LOCK
-# Arguments: None
-# Outputs: errors on stderr
-# Returns: nonzero if another operation holds the lock
+# Globals:
+#   LM_DIR, LM_STATE, LM_LOCK
+# Arguments:
+#   None
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero if another operation holds the lock
 #######################################
 __libman_lock() {
   mkdir -p -- "$(dirname -- "$LM_DIR")" || return 1
@@ -432,15 +479,20 @@ __libman_lock() {
 
 #######################################
 # Resolve latest or validate a release tag.
-# Globals: LM_REPO, LM_VERSION (read/write)
-# Arguments: None
-# Outputs: errors on stderr
-# Returns: nonzero on network/validation failure
+# Globals:
+#   LM_REPO, LM_VERSION (read/write)
+# Arguments:
+#   None
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on network/validation failure
 #######################################
 __libman_version() {
   local url
 
   LM_VERSION=${LM_VERSION:-latest}
+
   if [[ $LM_VERSION == latest ]]; then
     url=$(curl -fsSL --connect-timeout 15 --max-time 300 -o /dev/null -w '%{url_effective}' \
       "https://github.com/$LM_REPO/releases/latest") || return 1
@@ -460,15 +512,20 @@ __libman_version() {
 
 #######################################
 # Download and verify one release bundle using its exact checksum entry.
-# Globals: LM_REPO, LM_VERSION, LM_WORK
-# Arguments: bundle (lib, bin, tools, ext-NAME)
-# Outputs: errors on stderr
-# Returns: nonzero on failure
+# Globals:
+#   LM_REPO, LM_VERSION, LM_WORK
+# Arguments:
+#   1 - bundle (lib, bin, tools, ext-NAME)
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on failure
 #######################################
 __libman_bundle() {
   local asset="libsh-$1-$LM_VERSION.tar.gz" expected actual checksum name entry listing
   local base="https://github.com/$LM_REPO/releases/download/v$LM_VERSION"
   local extension_file=''
+
   [[ $1 != ext-* ]] || extension_file="extensions/lib${1#ext-}.sh"
 
   if [[ ! -f $LM_WORK/CHECKSUMS_SHA256.txt ]]; then
@@ -476,6 +533,7 @@ __libman_bundle() {
   fi
 
   expected=''
+
   while read -r checksum name; do
     if [[ $name == "$asset" ]]; then
       [[ -z $expected ]] || {
@@ -485,17 +543,20 @@ __libman_bundle() {
       expected=$checksum
     fi
   done <"$LM_WORK/CHECKSUMS_SHA256.txt"
+
   [[ $expected =~ ^[a-fA-F0-9]{64}$ ]] || {
     __libman_error "Missing or invalid checksum for $asset"
     return 1
   }
 
   curl -fsSL --connect-timeout 15 --max-time 300 -o "$LM_WORK/$asset" "$base/$asset" || return 1
+
   if command -v sha256sum >/dev/null 2>&1; then
     actual=$(sha256sum "$LM_WORK/$asset")
   else
     actual=$(shasum -a 256 "$LM_WORK/$asset")
   fi
+
   actual=${actual%% *}
   [[ $actual == "$expected" ]] || {
     __libman_error "Checksum mismatch for $asset"
@@ -503,6 +564,7 @@ __libman_bundle() {
   }
 
   listing=$(tar -tzf "$LM_WORK/$asset") || return 1
+
   while IFS= read -r entry; do
     [[ (($extension_file == "" && $entry == "$1/"*) || ($extension_file != "" && $entry == "$extension_file")) && $entry =~ ^[a-zA-Z0-9_./-]+$ && ! $entry =~ (^|/)\.\.(/|$) ]] || {
       __libman_error 'Unsafe bundle path.'
@@ -516,6 +578,7 @@ __libman_bundle() {
   fi
 
   listing=$(tar -tvzf "$LM_WORK/$asset") || return 1
+
   while IFS= read -r entry; do
     [[ $entry == -* || $entry == d* ]] || {
       __libman_error 'Bundle links and special files are unsupported.'
@@ -528,23 +591,28 @@ __libman_bundle() {
 
 #######################################
 # Atomically replace a symlink, without following a directory destination.
-# Globals: LM_WORK
-# Arguments: target, link path
-# Outputs: errors on stderr
-# Returns: nonzero on failure
+# Globals:
+#   LM_WORK
+# Arguments:
+#   1 - Target
+#   2 - Link path
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on failure
 #######################################
 __libman_link() {
   local temp="$2.libman-new.$$"
 
   ln -s -- "$1" "$temp" || return 1
   case $(uname -s) in
-  Darwin) mv -fh -- "$temp" "$2" ;;
-  Linux) mv -fT -- "$temp" "$2" ;;
-  *)
-    rm -f -- "$temp"
-    __libman_error 'Supported platforms are Linux and macOS.'
-    return 1
-    ;;
+    Darwin) mv -fh -- "$temp" "$2" ;;
+    Linux) mv -fT -- "$temp" "$2" ;;
+    *)
+      rm -f -- "$temp"
+      __libman_error 'Supported platforms are Linux and macOS.'
+      return 1
+      ;;
   esac || {
     rm -f -- "$temp"
     return 1
@@ -553,10 +621,16 @@ __libman_link() {
 
 #######################################
 # Validate an owned symlink or a recognizable legacy installation directory.
-# Globals: None
-# Arguments: path, expected link target, required legacy file
-# Outputs: errors on stderr
-# Returns: nonzero if adopting this path would replace unrelated data
+# Globals:
+#   None
+# Arguments:
+#   1 - Path
+#   2 - Expected link target
+#   3 - Required legacy file
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero if adopting this path would replace unrelated data
 #######################################
 __libman_check_destination() {
   if [[ -L $1 ]]; then
@@ -574,10 +648,15 @@ __libman_check_destination() {
 
 #######################################
 # Preserve a legacy directory, then establish a stable managed symlink.
-# Globals: None
-# Arguments: destination, link target
-# Outputs: errors on stderr
-# Returns: nonzero on failure; restore legacy directory if linking fails
+# Globals:
+#   None
+# Arguments:
+#   1 - Destination
+#   2 - Link target
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on failure; restore legacy directory if linking fails
 #######################################
 __libman_adopt() {
   local moved=0
@@ -595,28 +674,38 @@ __libman_adopt() {
 
 #######################################
 # Quote one value for Bash/Zsh rc files without evaluation.
-# Globals: None
-# Arguments: value
-# Outputs: single-quoted shell literal
-# Returns: 0
+# Globals:
+#   None
+# Arguments:
+#   1 - value
+# Outputs:
+#   single-quoted shell literal
+# Returns:
+#   0
 #######################################
 __libman_quote() {
   local value=$1
 
   printf "'"
+
   while [[ $value == *"'"* ]]; do
     printf '%s%s' "${value%%\'*}" "'\\''"
     value=${value#*\'}
   done
+
   printf "%s'" "$value"
 }
 
 #######################################
 # Update only the explicitly requested rc file's managed LIBSH_DIR block.
-# Globals: LM_SHELL, LM_DIR, LM_WORK
-# Arguments: None
-# Outputs: activation instructions; never edits PATH
-# Returns: nonzero on malformed markers or write errors
+# Globals:
+#   LM_SHELL, LM_DIR, LM_WORK
+# Arguments:
+#   None
+# Outputs:
+#   activation instructions; never edits PATH
+# Returns:
+#   nonzero on malformed markers or write errors
 #######################################
 __libman_shell() {
   local rc="$HOME/.${LM_SHELL}rc" start='# >>> libsh LIBSH_DIR >>>' end='# <<< libsh LIBSH_DIR <<<'
@@ -625,6 +714,7 @@ __libman_shell() {
   quoted=$(__libman_quote "$LM_DIR")
 
   : >"$LM_WORK/rc" || return 1
+
   if [[ -e $rc ]]; then
     [[ -f $rc && -r $rc && -w $rc ]] || {
       __libman_error 'Shell rc file must be readable and writable.'
@@ -650,6 +740,7 @@ __libman_shell() {
       fi
     done <"$rc"
   fi
+
   [[ $in_block == 0 ]] || {
     __libman_error 'Unclosed shell configuration marker.'
     return 1
@@ -665,10 +756,14 @@ __libman_shell() {
 
 #######################################
 # Install a verified release and a standalone manager, retaining old releases.
-# Globals: LM_* (read/write)
-# Arguments: None
-# Outputs: errors on stderr
-# Returns: nonzero on failure
+# Globals:
+#   LM_* (read/write)
+# Arguments:
+#   None
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on failure
 #######################################
 __libman_install() {
   local candidate manager_source extension
@@ -676,6 +771,7 @@ __libman_install() {
   __libman_check_destination "$LM_DIR" "$LM_STATE/current/lib" lib.sh || return 1
 
   mkdir -p -- "$LM_BIN" || return 1
+
   if [[ -e $LM_BIN/libman || -L $LM_BIN/libman ]]; then
     [[ -L $LM_BIN/libman && $(readlink "$LM_BIN/libman") == "$LM_STATE/libman" ]] || {
       __libman_error 'Refusing to overwrite an unrelated libman executable.'
@@ -723,6 +819,7 @@ __libman_install() {
   chmod a+r "$LM_WORK/repo" "$LM_WORK/include-tools" "$LM_WORK/lib/.libsh-version"
 
   manager_source=$LM_SELF
+
   if [[ ! -f $LM_STATE/libman ]]; then
     cp -- "$manager_source" "$LM_STATE/libman"
     chmod 755 "$LM_STATE/libman"
@@ -749,8 +846,10 @@ __libman_install() {
   if [[ $LM_TOOLS == 1 ]]; then
     __libman_adopt "$LM_TOOLS_DIR" "$LM_STATE/current/tools" || return 1
   fi
+
   __libman_link "$LM_STATE/libman" "$LM_BIN/libman" || return 1
   __libman_link "$candidate" "$LM_STATE/current" || return 1
+
   if [[ $LM_TOOLS == 0 && -L $LM_TOOLS_DIR && $(readlink "$LM_TOOLS_DIR") == "$LM_STATE/current/tools" ]]; then
     rm -- "$LM_TOOLS_DIR"
   fi
@@ -758,6 +857,7 @@ __libman_install() {
   printf 'Installed libsh %s at %s\n' "$LM_VERSION" "$LM_DIR"
   # shellcheck disable=SC2016 # print a literal expression for the user to add
   printf 'Add this line to your shell rc file yourself if needed:\n  export PATH=%s:"$PATH"\n' "$(__libman_quote "$LM_BIN")"
+
   if [[ -z $LM_SHELL ]]; then
     printf 'For script discovery, export LIBSH_DIR=%s\n' "$(__libman_quote "$LM_DIR")"
   fi
@@ -765,10 +865,14 @@ __libman_install() {
 
 #######################################
 # Update only the installed manager from a verified bin bundle.
-# Globals: LM_* (read/write)
-# Arguments: None
-# Outputs: errors on stderr
-# Returns: nonzero on failure
+# Globals:
+#   LM_* (read/write)
+# Arguments:
+#   None
+# Outputs:
+#   errors on stderr
+# Returns:
+#   nonzero on failure
 #######################################
 __libman_self_update() {
   [[ -f $LM_STATE/libman ]] || {
@@ -794,10 +898,14 @@ __libman_self_update() {
 
 #######################################
 # Remove owned installation links and state after explicit confirmation.
-# Globals: LM_* (read)
-# Arguments: None
-# Outputs: confirmation prompt and result
-# Returns: nonzero on refusal or unrecognized ownership
+# Globals:
+#   LM_* (read)
+# Arguments:
+#   None
+# Outputs:
+#   confirmation prompt and result
+# Returns:
+#   nonzero on refusal or unrecognized ownership
 #######################################
 __libman_uninstall() {
   local answer link target
@@ -809,9 +917,9 @@ __libman_uninstall() {
 
   for link in "$LM_DIR" "$LM_BIN/libman" "$LM_TOOLS_DIR"; do
     case $link in
-    "$LM_DIR") target=$LM_STATE/current/lib ;;
-    "$LM_BIN/libman") target=$LM_STATE/libman ;;
-    *) target=$LM_STATE/current/tools ;;
+      "$LM_DIR") target=$LM_STATE/current/lib ;;
+      "$LM_BIN/libman") target=$LM_STATE/libman ;;
+      *) target=$LM_STATE/current/tools ;;
     esac
     if [[ -L $link && $(readlink "$link") == "$target" ]]; then
       continue
@@ -836,78 +944,90 @@ __libman_uninstall() {
 
   [[ ! -L $LM_DIR ]] || rm -- "$LM_DIR"
   [[ ! -L $LM_BIN/libman ]] || rm -- "$LM_BIN/libman"
+
   if [[ -L $LM_TOOLS_DIR && $(readlink "$LM_TOOLS_DIR") == "$LM_STATE/current/tools" ]]; then
     rm -- "$LM_TOOLS_DIR"
   fi
+
   rm -rf -- "$LM_STATE"
 
   printf 'Removed managed installation. Legacy backups were retained.\nRemove its LIBSH_DIR block and any PATH line from your shell rc file if no longer needed.\n'
 }
 
 #######################################
-# Dispatch commands. Read-only commands never fetch releases or modify profiles.
-# Globals: LM_*
-# Arguments: command options
-# Outputs: errors on stderr
-# Returns: command status
+# Dispatch commands. Read-only commands never fetch releases or modify
+# profiles.
+# Globals:
+#   LM_*
+# Arguments:
+#   1+ - Command options
+# Outputs:
+#   errors on stderr
+# Returns:
+#   command status
 #######################################
 __libman_main() {
-  case $LM_COMMAND in help | -h | --help)
-    __libman_help
-    return 0
-    ;;
+  case $LM_COMMAND in
+    help | -h | --help)
+      __libman_help
+      return 0
+      ;;
   esac
 
   __libman_configure ${1+"$@"} || return $?
 
   case $LM_COMMAND in
-  path)
-    [[ -r $LM_DIR/lib.sh ]] || {
-      __libman_error 'Library is not installed.'
-      return 1
-    }
-    printf '%s\n' "$LM_DIR"
-    ;;
-  extensions)
-    [[ -r $LM_DIR/lib.sh ]] || {
-      __libman_error 'Library is not installed.'
-      return 1
-    }
-    local extension
-    for extension in $LM_EXTENSIONS; do printf '%s\n' "$extension"; done
-    ;;
-  status)
-    [[ -r $LM_DIR/lib.sh ]] || {
-      __libman_error 'Library is not installed.'
-      return 1
-    }
-    printf 'Library: %s\nDirectory: %s\nManager: %s\nCommand: %s/libman\nRepository: %s\n' \
-      "$(__libman_read "$LM_DIR/.libsh-version" unknown)" "$LM_DIR" \
-      "$(__libman_read "$LM_STATE/manager-version" uninstalled)" "$LM_BIN" "$LM_REPO"
-    ;;
-  install | update | extension-add | extension-remove | self-update | uninstall)
-    if [[ $LM_COMMAND != install && ! -f $LM_STATE/format ]]; then
-      __libman_error 'No managed installation found.'
-      return 1
-    fi
-    case $(uname -s) in Linux | Darwin) ;; *)
-      __libman_error 'Supported platforms are Linux and macOS.'
-      return 1
+    path)
+      [[ -r $LM_DIR/lib.sh ]] || {
+        __libman_error 'Library is not installed.'
+        return 1
+      }
+      printf '%s\n' "$LM_DIR"
       ;;
-    esac
+    extensions)
+      [[ -r $LM_DIR/lib.sh ]] || {
+        __libman_error 'Library is not installed.'
+        return 1
+      }
+      local extension
+      for extension in $LM_EXTENSIONS; do
+        printf '%s\n' "$extension"
+      done
+      ;;
+    status)
+      [[ -r $LM_DIR/lib.sh ]] || {
+        __libman_error 'Library is not installed.'
+        return 1
+      }
+      printf 'Library: %s\nDirectory: %s\nManager: %s\nCommand: %s/libman\nRepository: %s\n' \
+        "$(__libman_read "$LM_DIR/.libsh-version" unknown)" "$LM_DIR" \
+        "$(__libman_read "$LM_STATE/manager-version" uninstalled)" "$LM_BIN" "$LM_REPO"
+      ;;
+    install | update | extension-add | extension-remove | self-update | uninstall)
+      if [[ $LM_COMMAND != install && ! -f $LM_STATE/format ]]; then
+        __libman_error 'No managed installation found.'
+        return 1
+      fi
+      case $(uname -s) in
+        Linux | Darwin) ;;
+        *)
+          __libman_error 'Supported platforms are Linux and macOS.'
+          return 1
+          ;;
+      esac
 
-    __libman_lock || return 1
+      __libman_lock || return 1
 
-    case $LM_COMMAND in
-    install | update | extension-add | extension-remove) __libman_install ;;
-    self-update) __libman_self_update ;;
-    uninstall) __libman_uninstall ;;
-    esac
-    ;;
-  *)
-    __libman_error "Unknown command: $LM_COMMAND"
-    return 2
-    ;;
+      case $LM_COMMAND in
+        install | update | extension-add | extension-remove) __libman_install ;;
+        self-update) __libman_self_update ;;
+        uninstall) __libman_uninstall ;;
+      esac
+      ;;
+    *)
+      __libman_error "Unknown command: $LM_COMMAND"
+      return 2
+      ;;
   esac
 }
 

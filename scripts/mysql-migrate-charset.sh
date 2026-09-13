@@ -164,6 +164,7 @@ function mysql_migrate_charset::exec() {
   # tables correctly.
   # shellcheck disable=SC2016 # the backticks quote a MySQL identifier, they are not a subshell
   statement=$(printf 'ALTER DATABASE `%s` CHARACTER SET %s%s;' "${db_name//\`/\`\`}" "$charset" "$collate_clause")
+
   if [[ $dry_run == "1" ]]; then
     lib::log::yellow "[dry-run] $statement"
   else
@@ -210,6 +211,8 @@ function mysql_migrate_charset::exec() {
 #   1 - The table's current collation (information_schema.TABLE_COLLATION)
 #   2 - Target charset
 #   3 - Target collation, or "" for the charset default
+# Outputs:
+#   None
 # Returns:
 #   0 if the table already matches, 1 if it needs converting.
 #######################################
@@ -242,7 +245,9 @@ function mysql_migrate_charset::matches() {
 #   OPTS_VALUES (written by lib::opt::parse)
 #   MYSQL_PWD (read as a fallback, exported for mysql)
 # Arguments:
-#   The script's original "$@"
+#   1+ - The script's original "$@"
+# Outputs:
+#   Help and operation progress to stdout; errors to stderr.
 # Returns:
 #   0 on success, 1 on a usage, credential or confirmation error.
 #######################################
@@ -276,6 +281,7 @@ function main() {
   fi
 
   export MYSQL_PWD="${password:-${MYSQL_PWD:-}}"
+
   unset password
 
   if [[ -z $MYSQL_PWD ]]; then
