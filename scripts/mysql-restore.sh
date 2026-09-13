@@ -72,7 +72,7 @@ declare -A OPTS_VALUES=()
 # Returns:
 #   0 if all prerequisites were found, 1 otherwise.
 #######################################
-function restore_mysql::prerequisites() {
+function mysql_restore::prerequisites() {
   local prerequisites=('mysql' 'pv' 'numfmt')
 
   for prerequisite in "${prerequisites[@]}"; do
@@ -104,7 +104,7 @@ function restore_mysql::prerequisites() {
 # Returns:
 #   0 on success, otherwise the return value of 'mysql'.
 #######################################
-function restore_mysql::exec() {
+function mysql_restore::exec() {
   local host=${1} port=${2} user=${3} database=${4} filename=${5} dry_run=${6}
   local file_size size target
 
@@ -159,7 +159,7 @@ function main() {
   # the run for the required flags a prerequisite check has no use for.
   for arg in "$@"; do
     if [[ $arg == "--check-prerequisites" ]]; then
-      restore_mysql::prerequisites
+      mysql_restore::prerequisites
       return $?
     fi
   done
@@ -240,7 +240,7 @@ function main() {
   fi
 
   for file in "${valid_files[@]}"; do
-    restore_mysql::exec "$host" "$port" "$user" "$database" "$file" "$dry_run"
+    mysql_restore::exec "$host" "$port" "$user" "$database" "$file" "$dry_run"
   done
 }
 

@@ -71,7 +71,7 @@ declare -A OPTS_VALUES=()
 # Returns:
 #   0 if all prerequisites were found, 1 otherwise.
 #######################################
-function backup_mysql::prerequisites() {
+function mysql_backup::prerequisites() {
   local prerequisites=('mysql' 'mysqldump' 'pv' 'numfmt')
 
   for prerequisite in "${prerequisites[@]}"; do
@@ -103,7 +103,7 @@ function backup_mysql::prerequisites() {
 # Returns:
 #   0 on success, otherwise the return value of 'mysql' or 'mysqldump'.
 #######################################
-function backup_mysql::exec() {
+function mysql_backup::exec() {
   local host=${1} port=${2} user=${3} db_name=${4} filename=${5} dry_run=${6}
   local db_size size
 
@@ -177,7 +177,7 @@ function main() {
   # the run for the required flags a prerequisite check has no use for.
   for arg in "$@"; do
     if [[ $arg == "--check-prerequisites" ]]; then
-      backup_mysql::prerequisites
+      mysql_backup::prerequisites
       return $?
     fi
   done
@@ -239,7 +239,7 @@ function main() {
       lib::fs::ensure_existence "$file"
     fi
 
-    backup_mysql::exec "$host" "$port" "$user" "$db_name" "$file" "$dry_run"
+    mysql_backup::exec "$host" "$port" "$user" "$db_name" "$file" "$dry_run"
   done
 }
 
