@@ -14,26 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/permissions.sh
-. "$LIB_DIR"/permissions.sh
-
-# shellcheck source=lib/ui.sh
-. "$LIB_DIR"/ui.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions ui
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-c,--country:country:1:optional"
   "-m,--mirror:mirror:1:optional"
@@ -44,6 +37,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [country]="Two-letter country code for a country mirror, e.g. 'de' (default: de)"
   [mirror]="Full mirror base URI, e.g. 'https://mirror.hetzner.com/ubuntu/packages'. Overrides --country."
@@ -82,7 +76,7 @@ function ubuntu_update_mirrors::prerequisites() {
   fi
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -169,19 +163,19 @@ function ubuntu_update_mirrors::exec() {
   if [[ $assume_yes != "1" ]]; then
     # No default, so an unattended run without --yes stops here instead of
     # repointing a production machine's apt sources unwatched.
-    if ! lib::ui::confirm "Apply this change to $filename?"; then
+    if ! ext::ui::confirm "Apply this change to $filename?"; then
       lib::log::red "Aborted; '$filename' was left untouched."
       return 1
     fi
   fi
 
   backup="${filename}.libsh-$(date '+%d-%m-%Y+%H-%M-%S').bak"
-  lib::permissions::run_as_root cp -- "$filename" "$backup"
+  lib::os::root_exec cp -- "$filename" "$backup"
   lib::log::green "Backed the original up to '$backup'."
 
   # 'cp' onto the existing file keeps its owner and mode, which matters
   # for anything under /etc/apt.
-  lib::permissions::run_as_root cp -- "$rewritten" "$filename"
+  lib::os::root_exec cp -- "$rewritten" "$filename"
 
   lib::log::timed_green "Repointed '$filename' at $mirror."
   lib::log::yellow "Run ./scripts/ubuntu-update-packages.sh to refresh the package lists from the new mirror."
@@ -195,7 +189,7 @@ function ubuntu_update_mirrors::exec() {
 # Parse the flags, resolve the mirror and sources file, then rewrite it.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -213,7 +207,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   country="${OPTS_VALUES[country]:-de}"
   mirror="${OPTS_VALUES[mirror]:-}"

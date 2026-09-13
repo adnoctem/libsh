@@ -26,9 +26,9 @@
 # Returns:
 #   0 once the connection succeeds. Exits 1 if it never does.
 #######################################
-function lib::networking::tcp_probe() {
+function lib::net::tcp_probe() {
   local host=${1} port=${2} label=${3:-"${1}:${2}"} tries=${4:-60} timeout=${5:-5}
-  if lib::networking::tcp_wait "$host" "$port" --label "$label" --attempts "$tries" --timeout "$timeout"; then
+  if lib::net::tcp_wait "$host" "$port" --label "$label" --attempts "$tries" --timeout "$timeout"; then
     return 0
   fi
   lib::log::red "FATAL: could not reach ${label} (${host}:${port}) after ${tries} tries."
@@ -36,8 +36,8 @@ function lib::networking::tcp_probe() {
 }
 
 #######################################
-# Convenience wrapper around lib::networking::tcp_probe: parse host/port out
-# of a DSN with 'trurl' first. Kept separate from lib::networking::tcp_probe
+# Convenience wrapper around lib::net::tcp_probe: parse host/port out
+# of a DSN with 'trurl' first. Kept separate from lib::net::tcp_probe
 # itself so this module carries no hard dependency on trurl being installed
 # -- only callers of THIS function need it on PATH.
 # Deprecated: credentials reach trurl argv. New callers should use
@@ -51,16 +51,16 @@ function lib::networking::tcp_probe() {
 #   4 - Number of retries before giving up (optional, default 60)
 #   5 - Per-attempt connect timeout in seconds (optional, default 5)
 # Outputs:
-#   Same as lib::networking::tcp_probe.
+#   Same as lib::net::tcp_probe.
 # Returns:
-#   Same as lib::networking::tcp_probe.
+#   Same as lib::net::tcp_probe.
 #######################################
-function lib::networking::tcp_dsn_probe() {
+function lib::net::tcp_dsn_probe() {
   local dsn=${1} default_port=${2} label=${3:-} tries=${4:-60} timeout=${5:-5}
   local host port
 
   if ! command -v trurl &>/dev/null; then
-    lib::log::red "lib::networking::tcp_dsn_probe requires 'trurl' on PATH to parse DSNs."
+    lib::log::red "lib::net::tcp_dsn_probe requires 'trurl' on PATH to parse DSNs."
     exit 1
   fi
 
@@ -68,7 +68,7 @@ function lib::networking::tcp_dsn_probe() {
   port=$(trurl "${dsn}" --get '{port}')
   port=${port:-${default_port}}
 
-  lib::networking::tcp_probe "${host}" "${port}" "${label:-${host}}" "${tries}" "${timeout}"
+  lib::net::tcp_probe "${host}" "${port}" "${label:-${host}}" "${tries}" "${timeout}"
 }
 
 #######################################
@@ -82,7 +82,7 @@ function lib::networking::tcp_dsn_probe() {
 # Returns:
 #   0 valid, 2 invalid.
 #######################################
-__libsh_networking_decimal() {
+function __libsh_net_decimal() {
   local LC_ALL=C
   local __libsh_dec=${1:-}
   [[ $__libsh_dec =~ ^[0-9]+$ ]] || return 2
@@ -103,7 +103,7 @@ __libsh_networking_decimal() {
 # Returns:
 #   0 valid, 2 invalid.
 #######################################
-__libsh_networking_endpoint_ipv6() {
+function __libsh_net_endpoint_ipv6() {
   local LC_ALL=C
   local __libsh_ip=$1 __libsh_ip_tail __libsh_ip_side __libsh_ip_group
   local __libsh_ip_count=0 __libsh_ip_compressed=0
@@ -111,7 +111,7 @@ __libsh_networking_endpoint_ipv6() {
   [[ $__libsh_ip == *:* && $__libsh_ip != *:::* ]] || return 2
   if [[ $__libsh_ip == *.* ]]; then
     __libsh_ip_tail=${__libsh_ip##*:}
-    lib::networking::is_ipv4 "$__libsh_ip_tail" || return 2
+    lib::net::is_ipv4 "$__libsh_ip_tail" || return 2
     __libsh_ip=${__libsh_ip%:*}:0:0
   fi
   if [[ $__libsh_ip == *::* ]]; then
@@ -151,16 +151,16 @@ __libsh_networking_endpoint_ipv6() {
 # Returns:
 #   0 valid, 2 invalid.
 #######################################
-__libsh_networking_endpoint_host() {
+function __libsh_net_endpoint_host() {
   local LC_ALL=C
   local __libsh_host=$1 __libsh_host_label
   local -a __libsh_host_labels=()
   if [[ $__libsh_host == *:* ]]; then
-    __libsh_networking_endpoint_ipv6 "$__libsh_host"
+    __libsh_net_endpoint_ipv6 "$__libsh_host"
     return $?
   fi
   if [[ $__libsh_host =~ ^[0-9.]+$ && $__libsh_host == *.* ]]; then
-    lib::networking::is_ipv4 "$__libsh_host" || return 2
+    lib::net::is_ipv4 "$__libsh_host" || return 2
     return 0
   fi
   [[ $__libsh_host != *.. ]] || return 2
@@ -184,15 +184,15 @@ __libsh_networking_endpoint_host() {
 # Returns:
 #   0 success, 2 invalid reference/URI/port. Never exits.
 #######################################
-lib::networking::endpoint_from_uri() {
+function lib::net::endpoint_from_uri() {
   local LC_ALL=C
   [[ $# == 3 || ($# == 5 && ${4:-} == --default-port) ]] || {
     lib::log::red 'Expected URI_VAR HOST_OUT PORT_OUT and optional --default-port.'
     return 2
   }
-  __libsh_utils_scalar_reference "$1" read || return 2
-  __libsh_utils_scalar_reference "$2" write || return 2
-  __libsh_utils_scalar_reference "$3" write || return 2
+  __libsh_data_scalar_reference "$1" read || return 2
+  __libsh_data_scalar_reference "$2" write || return 2
+  __libsh_data_scalar_reference "$3" write || return 2
   [[ $1 != "$2" && $1 != "$3" && $2 != "$3" ]] || {
     lib::log::red 'Endpoint variable references must be distinct.'
     return 2
@@ -200,7 +200,7 @@ lib::networking::endpoint_from_uri() {
   local __libsh_uri=${!1-} __libsh_uri_default='' __libsh_uri_host __libsh_uri_port=''
   local __libsh_uri_authority __libsh_uri_user __libsh_uri_check __libsh_uri_rest
   if [[ $# == 5 ]]; then
-    __libsh_uri_default=$(__libsh_networking_decimal "$5" 65535 1) || {
+    __libsh_uri_default=$(__libsh_net_decimal "$5" 65535 1) || {
       lib::log::red 'Invalid default port.'
       return 2
     }
@@ -239,14 +239,14 @@ lib::networking::endpoint_from_uri() {
     __libsh_uri_host=${__libsh_uri_authority#\[}
     __libsh_uri_host=${__libsh_uri_host%%\]*}
     __libsh_uri_rest=${__libsh_uri_authority#*\]}
-    __libsh_networking_endpoint_ipv6 "$__libsh_uri_host" || {
+    __libsh_net_endpoint_ipv6 "$__libsh_uri_host" || {
       lib::log::red 'Invalid IPv6 endpoint.'
       return 2
     }
   else
     __libsh_uri_host=${__libsh_uri_authority%%:*}
     __libsh_uri_rest=${__libsh_uri_authority#"$__libsh_uri_host"}
-    __libsh_networking_endpoint_host "$__libsh_uri_host" || {
+    __libsh_net_endpoint_host "$__libsh_uri_host" || {
       lib::log::red 'Invalid endpoint host.'
       return 2
     }
@@ -256,7 +256,7 @@ lib::networking::endpoint_from_uri() {
       lib::log::red 'Invalid endpoint authority.'
       return 2
     }
-    __libsh_uri_port=$(__libsh_networking_decimal "${__libsh_uri_rest#:}" 65535 1) || {
+    __libsh_uri_port=$(__libsh_net_decimal "${__libsh_uri_rest#:}" 65535 1) || {
       lib::log::red 'Invalid explicit endpoint port.'
       return 2
     }
@@ -283,7 +283,7 @@ lib::networking::endpoint_from_uri() {
 #   0 connected, 1 dependency/connection/sleep failure, 2 invalid arguments.
 #   Budget: attempts*timeout + (attempts-1)*interval, excluding DNS and overhead.
 #######################################
-lib::networking::tcp_wait() {
+function lib::net::tcp_wait() {
   [[ $# -ge 2 ]] || {
     lib::log::red 'tcp_wait requires HOST and PORT.'
     return 2
@@ -292,11 +292,11 @@ lib::networking::tcp_wait() {
   local __libsh_wait_attempts=60 __libsh_wait_timeout=5 __libsh_wait_interval=1
   local __libsh_wait_seen=' ' __libsh_wait_attempt=1 __libsh_wait_platform
   local -a __libsh_wait_nc_flags
-  __libsh_networking_endpoint_host "$1" || {
+  __libsh_net_endpoint_host "$1" || {
     lib::log::red 'Invalid TCP host.'
     return 2
   }
-  __libsh_wait_port=$(__libsh_networking_decimal "$2" 65535 1) || {
+  __libsh_wait_port=$(__libsh_net_decimal "$2" 65535 1) || {
     lib::log::red 'Invalid TCP port.'
     return 2
   }
@@ -319,9 +319,9 @@ lib::networking::tcp_wait() {
     esac
     shift 2
   done
-  if ! __libsh_wait_attempts=$(__libsh_networking_decimal "$__libsh_wait_attempts" 999999999 1) ||
-    ! __libsh_wait_timeout=$(__libsh_networking_decimal "$__libsh_wait_timeout" 999999999 1) ||
-    ! __libsh_wait_interval=$(__libsh_networking_decimal "$__libsh_wait_interval" 999999999 0); then
+  if ! __libsh_wait_attempts=$(__libsh_net_decimal "$__libsh_wait_attempts" 999999999 1) ||
+    ! __libsh_wait_timeout=$(__libsh_net_decimal "$__libsh_wait_timeout" 999999999 1) ||
+    ! __libsh_wait_interval=$(__libsh_net_decimal "$__libsh_wait_interval" 999999999 0); then
     lib::log::red 'Invalid TCP retry budget.'
     return 2
   fi
@@ -383,7 +383,7 @@ lib::networking::tcp_wait() {
 # Returns:
 #   0 on success, 1 if no default route/adapter was found.
 #######################################
-lib::networking::default_adapter() {
+function lib::net::default_adapter() {
   local iface
 
   if [[ $(uname) == "Darwin" ]]; then
@@ -421,11 +421,11 @@ lib::networking::default_adapter() {
 # Returns:
 #   0 on success, 1 if no address of that family was found.
 #######################################
-lib::networking::ip_address() {
+function lib::net::ip_address() {
   local family=${1:-ipv4} iface=${2:-} ip
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
   if [[ $(uname) == "Darwin" ]]; then
@@ -462,11 +462,11 @@ lib::networking::ip_address() {
 # Returns:
 #   0 on success, 1 if no IPv4 mask was found.
 #######################################
-lib::networking::subnet_mask() {
+function lib::net::subnet_mask() {
   local iface=${1:-} cidr hex
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
   if [[ $(uname) == "Darwin" ]]; then
@@ -475,7 +475,7 @@ lib::networking::subnet_mask() {
       lib::log::red "No IPv4 subnet mask found on adapter '$iface'."
       return 1
     fi
-    __libsh_networking_hex_mask_to_dotted "$hex"
+    __libsh_net_hex_mask_to_dotted "$hex"
     return 0
   fi
 
@@ -486,7 +486,7 @@ lib::networking::subnet_mask() {
     return 1
   fi
 
-  __libsh_networking_cidr_to_dotted_mask "$cidr"
+  __libsh_net_cidr_to_dotted_mask "$cidr"
 }
 
 #######################################
@@ -501,11 +501,11 @@ lib::networking::subnet_mask() {
 # Returns:
 #   0 on success, 1 if no gateway of that family was found.
 #######################################
-lib::networking::default_gateway() {
+function lib::net::default_gateway() {
   local family=${1:-ipv4} iface=${2:-} flag=-4 gateway
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
   [[ $family == "ipv6" ]] && flag=-6
 
@@ -541,7 +541,7 @@ lib::networking::default_gateway() {
 # Returns:
 #   0 on success, 1 if no matching DNS servers were found.
 #######################################
-lib::networking::dns_servers() {
+function lib::net::dns_servers() {
   local family=${1:-} servers
 
   case "$family" in
@@ -569,11 +569,11 @@ lib::networking::dns_servers() {
 # Returns:
 #   0 on success, 1 if no MAC address was found.
 #######################################
-lib::networking::mac_address() {
+function lib::net::mac_address() {
   local iface=${1:-} mac
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
   if [[ $(uname) == "Darwin" ]]; then
@@ -603,26 +603,26 @@ lib::networking::mac_address() {
 # Returns:
 #   0 on success, 1 on failure.
 #######################################
-lib::networking::network_prefix() {
+function lib::net::network_prefix() {
   local family=${1:-ipv4} iface=${2:-} ip mask data address prefix_length expanded masked
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
   if [[ $family == "ipv4" ]]; then
-    ip=$(lib::networking::ip_address ipv4 "$iface") || return 1
-    mask=$(lib::networking::subnet_mask "$iface") || return 1
-    __libsh_networking_ipv4_and "$ip" "$mask"
+    ip=$(lib::net::ip_address ipv4 "$iface") || return 1
+    mask=$(lib::net::subnet_mask "$iface") || return 1
+    __libsh_net_ipv4_and "$ip" "$mask"
     return 0
   fi
 
-  data=$(__libsh_networking_ipv6_prefix_data "$iface") || return 1
+  data=$(__libsh_net_ipv6_prefix_data "$iface") || return 1
   address="${data%/*}"
   prefix_length="${data#*/}"
-  expanded=$(__libsh_networking_ipv6_expand "$address")
-  masked=$(__libsh_networking_ipv6_apply_prefix "$expanded" "$prefix_length")
-  __libsh_networking_ipv6_hex_to_string "$masked"
+  expanded=$(__libsh_net_ipv6_expand "$address")
+  masked=$(__libsh_net_ipv6_apply_prefix "$expanded" "$prefix_length")
+  __libsh_net_ipv6_hex_to_string "$masked"
 }
 
 #######################################
@@ -637,24 +637,24 @@ lib::networking::network_prefix() {
 # Returns:
 #   0 on success, 1 on failure.
 #######################################
-lib::networking::network_prefix_cidr() {
+function lib::net::network_prefix_cidr() {
   local family=${1:-ipv4} iface=${2:-} prefix mask cidr data prefix_length
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
   if [[ $family == "ipv4" ]]; then
-    prefix=$(lib::networking::network_prefix ipv4 "$iface") || return 1
-    mask=$(lib::networking::subnet_mask "$iface") || return 1
-    cidr=$(__libsh_networking_dotted_mask_to_cidr "$mask")
+    prefix=$(lib::net::network_prefix ipv4 "$iface") || return 1
+    mask=$(lib::net::subnet_mask "$iface") || return 1
+    cidr=$(__libsh_net_dotted_mask_to_cidr "$mask")
     printf '%s/%s' "$prefix" "$cidr"
     return 0
   fi
 
-  data=$(__libsh_networking_ipv6_prefix_data "$iface") || return 1
+  data=$(__libsh_net_ipv6_prefix_data "$iface") || return 1
   prefix_length="${data#*/}"
-  prefix=$(lib::networking::network_prefix ipv6 "$iface") || return 1
+  prefix=$(lib::net::network_prefix ipv6 "$iface") || return 1
   printf '%s/%s' "$prefix" "$prefix_length"
 }
 
@@ -669,16 +669,16 @@ lib::networking::network_prefix_cidr() {
 # Returns:
 #   0 on success, 1 on failure.
 #######################################
-lib::networking::broadcast_address() {
+function lib::net::broadcast_address() {
   local iface=${1:-} ip mask
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
-  ip=$(lib::networking::ip_address ipv4 "$iface") || return 1
-  mask=$(lib::networking::subnet_mask "$iface") || return 1
-  __libsh_networking_ipv4_broadcast "$ip" "$mask"
+  ip=$(lib::net::ip_address ipv4 "$iface") || return 1
+  mask=$(lib::net::subnet_mask "$iface") || return 1
+  __libsh_net_ipv4_broadcast "$ip" "$mask"
 }
 
 #######################################
@@ -695,17 +695,17 @@ lib::networking::broadcast_address() {
 # Returns:
 #   0 on success, 1 on failure.
 #######################################
-lib::networking::multicast_address() {
+function lib::net::multicast_address() {
   local iface=${1:-} ip expanded multicast
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
-  ip=$(lib::networking::ip_address ipv6 "$iface") || return 1
-  expanded=$(__libsh_networking_ipv6_expand "$ip")
-  multicast=$(__libsh_networking_ipv6_multicast "$expanded")
-  __libsh_networking_ipv6_hex_to_string "$multicast"
+  ip=$(lib::net::ip_address ipv6 "$iface") || return 1
+  expanded=$(__libsh_net_ipv6_expand "$ip")
+  multicast=$(__libsh_net_ipv6_multicast "$expanded")
+  __libsh_net_ipv6_hex_to_string "$multicast"
 }
 
 #######################################
@@ -719,7 +719,7 @@ lib::networking::multicast_address() {
 # Returns:
 #   0 if valid, 1 otherwise.
 #######################################
-lib::networking::is_ipv4() {
+function lib::net::is_ipv4() {
   local address=${1:-}
   local -a octets
   local octet
@@ -754,7 +754,7 @@ lib::networking::is_ipv4() {
 # Returns:
 #   0 if valid, 1 otherwise.
 #######################################
-lib::networking::is_ipv6() {
+function lib::net::is_ipv6() {
   local address=${1:-}
   local last_segment left right double_colon_count group
   local -a explicit left_groups right_groups
@@ -767,7 +767,7 @@ lib::networking::is_ipv6() {
   if [[ $address == *:* ]]; then
     last_segment=${address##*:}
     if [[ $last_segment == *.* ]]; then
-      lib::networking::is_ipv4 "$last_segment" || return 1
+      lib::net::is_ipv4 "$last_segment" || return 1
       address="${address%:*}:0"
     fi
   fi
@@ -804,7 +804,7 @@ lib::networking::is_ipv6() {
 }
 
 # --- Internal helpers ---------------------------------------------------
-# Private implementation details use __libsh_networking_ and are called by
+# Private implementation details use __libsh_net_ and are called by
 # the public functions above. They are not supported consumer APIs.
 
 #######################################
@@ -823,11 +823,11 @@ lib::networking::is_ipv6() {
 # Returns:
 #   0 on success, 1 if no IPv6 address was found.
 #######################################
-__libsh_networking_ipv6_prefix_data() {
+function __libsh_net_ipv6_prefix_data() {
   local iface=${1:-} line address prefix_length
 
   if [[ -z $iface ]]; then
-    iface=$(lib::networking::default_adapter) || return 1
+    iface=$(lib::net::default_adapter) || return 1
   fi
 
   if [[ $(uname) == "Darwin" ]]; then
@@ -862,7 +862,7 @@ __libsh_networking_ipv6_prefix_data() {
 # Outputs:
 #   The dotted-decimal mask to stdout.
 #######################################
-__libsh_networking_cidr_to_dotted_mask() {
+function __libsh_net_cidr_to_dotted_mask() {
   local prefix=${1} i octet
   local -a mask_octets=()
 
@@ -891,7 +891,7 @@ __libsh_networking_cidr_to_dotted_mask() {
 # Outputs:
 #   The prefix length to stdout.
 #######################################
-__libsh_networking_dotted_mask_to_cidr() {
+function __libsh_net_dotted_mask_to_cidr() {
   local mask=${1} octet bits=0
   local -a octets
 
@@ -916,7 +916,7 @@ __libsh_networking_dotted_mask_to_cidr() {
 # Outputs:
 #   The dotted-decimal mask to stdout.
 #######################################
-__libsh_networking_hex_mask_to_dotted() {
+function __libsh_net_hex_mask_to_dotted() {
   local hex=${1#0x}
 
   printf '%d.%d.%d.%d' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}" "0x${hex:6:2}"
@@ -932,7 +932,7 @@ __libsh_networking_hex_mask_to_dotted() {
 # Outputs:
 #   The result, in dotted-decimal form, to stdout.
 #######################################
-__libsh_networking_ipv4_and() {
+function __libsh_net_ipv4_and() {
   local ip=${1} mask=${2}
   local -a ip_o mask_o
 
@@ -955,7 +955,7 @@ __libsh_networking_ipv4_and() {
 # Outputs:
 #   The broadcast address, in dotted-decimal form, to stdout.
 #######################################
-__libsh_networking_ipv4_broadcast() {
+function __libsh_net_ipv4_broadcast() {
   local ip=${1} mask=${2}
   local -a ip_o mask_o
 
@@ -977,7 +977,7 @@ __libsh_networking_ipv4_broadcast() {
 # Outputs:
 #   The expanded 32-hex-digit string to stdout.
 #######################################
-__libsh_networking_ipv6_expand() {
+function __libsh_net_ipv6_expand() {
   local address=${1}
   local left right double_colon_count missing i group out=""
   local -a left_groups right_groups groups=()
@@ -1024,7 +1024,7 @@ __libsh_networking_ipv6_expand() {
 # Outputs:
 #   The masked 32-hex-digit string to stdout.
 #######################################
-__libsh_networking_ipv6_apply_prefix() {
+function __libsh_net_ipv6_apply_prefix() {
   local hex=${1} remaining=${2}
   local j byte_hex byte_val mask out=""
 
@@ -1059,7 +1059,7 @@ __libsh_networking_ipv6_apply_prefix() {
 # Outputs:
 #   The expanded 32-hex-digit multicast address to stdout.
 #######################################
-__libsh_networking_ipv6_multicast() {
+function __libsh_net_ipv6_multicast() {
   local hex=${1} prefix
 
   printf -v prefix '%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x' \
@@ -1079,7 +1079,7 @@ __libsh_networking_ipv6_multicast() {
 # Outputs:
 #   The compressed address to stdout.
 #######################################
-__libsh_networking_ipv6_hex_to_string() {
+function __libsh_net_ipv6_hex_to_string() {
   local hex=${1}
   local -a groups=()
   local i group

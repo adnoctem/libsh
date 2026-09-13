@@ -14,7 +14,13 @@
             "BREAKING CHANGES",
             "BREAKING"
           ]
-        }
+        },
+        "releaseRules": [
+          {
+            "breaking": true,
+            "release": "minor"
+          }
+        ]
       }
     ],
     [
@@ -33,6 +39,7 @@
     [
       "@semantic-release/exec",
       {
+        "verifyReleaseCmd": "tools/release-prepare.sh --version ${nextRelease.version} --check-version",
         "prepareCmd": "tools/release-prepare.sh --version ${nextRelease.version}"
       }
     ],

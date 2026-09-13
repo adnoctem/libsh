@@ -14,23 +14,18 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/paths.sh
-. "$LIB_DIR"/paths.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-o,--output-file:output_file:1:optional"
   ",--all:all:0:optional"
@@ -39,6 +34,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [output_file]="Write the manifest here instead of stdout"
   [all]="List every installed package, not just the manually installed ones"
@@ -65,7 +61,7 @@ function ubuntu_list_packages::prerequisites() {
   local prerequisites=('apt-mark' 'dpkg-query')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -139,7 +135,7 @@ function ubuntu_list_packages::exec() {
 # pipeable into a file or another command.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -157,7 +153,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   filename="${OPTS_VALUES[output_file]:-}"
   all="${OPTS_VALUES[all]:-}"
@@ -168,7 +164,7 @@ function main() {
     return 0
   fi
 
-  lib::paths::ensure_existence "$filename"
+  lib::os::ensure_existence "$filename"
   ubuntu_list_packages::exec "$all" "$with_versions" >"$filename"
 
   count=$(grep -c . "$filename" || true)

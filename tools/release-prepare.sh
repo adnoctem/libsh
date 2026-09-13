@@ -16,28 +16,26 @@ MAKEFILE="$ROOT_DIR/Makefile"
 DIST_DIR="$ROOT_DIR/dist"
 CHECKSUMS_FILE="$DIST_DIR/CHECKSUMS_SHA256.txt"
 
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   ",--version:version:1:required"
   "-h,--help:help:0:optional"
   ",--dry-run:dry_run:0:optional"
+  ",--check-version:check_version:0:optional"
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
-  [version]="Semantic version to release, e.g. '1.2.3' (matches \${nextRelease.version})"
+  [version]="Semantic version to release, e.g. '0.6.0' (matches \${nextRelease.version})"
+  [check_version]="Validate the proposed pre-1.0 version without changing files"
   [dry_run]="Print the steps that would run, without touching the Makefile or dist/"
   [check_prerequisites]="Check that the required packages are installed, then exit"
   [help]="Show this help message and exit"
@@ -61,7 +59,7 @@ function release_prepare::prerequisites() {
   local prerequisites=('sed' 'make' 'sha256sum' 'tar')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -74,8 +72,8 @@ function release_prepare::prerequisites() {
 }
 
 #######################################
-# Validate a version is a bare semver core, matching what
-# @semantic-release/commit-analyzer hands to exec's prepareCmd.
+# Validate a proposed release before any files, tags or assets are written.
+# This explicit 0.x restriction must be reviewed when graduating to 1.0.0.
 # Globals:
 #   None
 # Arguments:
@@ -86,8 +84,13 @@ function release_prepare::prerequisites() {
 function release_prepare::validate_version() {
   local version=${1}
 
-  if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    lib::log::red "Invalid version '$version'; expected a bare semver core, e.g. '1.2.3'."
+  if [[ ! $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+    lib::log::red "Invalid version '$version'; expected a bare semver core, e.g. '0.6.0'."
+    return 1
+  fi
+
+  if [[ $version != 0.* ]]; then
+    lib::log::red "Refusing release '$version': only 0.x releases are enabled. Review the release policy before enabling 1.0.0."
     return 1
   fi
 
@@ -193,7 +196,7 @@ function release_prepare::write_checksums() {
 # write the checksum file.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -211,12 +214,16 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   version="${OPTS_VALUES[version]}"
   dry_run="${OPTS_VALUES[dry_run]:-}"
 
   release_prepare::validate_version "$version" || return 1
+  if [[ ${OPTS_VALUES[check_version]:-} == 1 ]]; then
+    return 0
+  fi
+
   release_prepare::set_makefile_version "$version" "$dry_run" || return 1
   release_prepare::build "$dry_run" || return 1
   release_prepare::write_checksums "$dry_run" || return 1

@@ -1,11 +1,11 @@
 # shellcheck shell=bash
 
-# lib::opts -- shared argument parser for all libsh scripts.
+# lib::opt -- shared argument parser for all libsh scripts.
 #
 # Calling convention
 # -------------------
 # The calling script defines three globals *before* invoking
-# lib::opts::parse, and reads results from a fourth populated by it:
+# lib::opt::parse, and reads results from a fourth populated by it:
 #
 #   OPTS=(
 #     "-u,--username:username:1:required"
@@ -21,7 +21,7 @@
 #   )
 #   declare -A OPTS_VALUES=()
 #
-#   lib::opts::parse "$@" || exit 1
+#   lib::opt::parse "$@" || exit 1
 #
 # Spec entry format (colon-separated fields; first field is
 # comma-separated short,long -- either may be omitted, not both):
@@ -32,7 +32,7 @@
 #   - value flags:   OPTS_VALUES[<key>] holds the supplied string
 #   - boolean flags: OPTS_VALUES[<key>] is "1" if passed, unset otherwise
 #   - a spec entry whose <key> is literally "help" triggers
-#     lib::opts::usage and `exit 0` immediately, before validation
+#     lib::opt::usage and `exit 0` immediately, before validation
 #   - missing "required" entries print an error + usage and return 1
 #
 # Requires bash >= 4 (associative arrays). No nameref usage, so it also
@@ -48,7 +48,7 @@
 # Outputs:
 #   Writes usage to stdout
 #######################################
-function lib::opts::usage() {
+function lib::opt::usage() {
   local script_name
   script_name=$(basename "${0}")
   echo "Usage: $script_name [OPTIONS]"
@@ -85,9 +85,9 @@ function lib::opts::usage() {
 #   or a required flag not supplied (each case prints an error first).
 # Outputs:
 #   Nothing on success. Errors to stderr via lib::log::red on failure.
-#   Calls lib::opts::usage + exit 0 immediately if a "help" key is hit.
+#   Calls lib::opt::usage + exit 0 immediately if a "help" key is hit.
 #######################################
-function lib::opts::parse() {
+function lib::opt::parse() {
   OPTS_VALUES=()
 
   while [[ $# -gt 0 ]]; do
@@ -103,7 +103,7 @@ function lib::opts::parse() {
         matched=1
 
         if [[ $key == "help" ]]; then
-          lib::opts::usage
+          lib::opt::usage
           exit 0
         fi
 
@@ -142,7 +142,7 @@ function lib::opts::parse() {
   if [[ ${#missing[@]} -gt 0 ]]; then
     lib::log::red "Missing required option(s): ${missing[*]}"
     echo
-    lib::opts::usage
+    lib::opt::usage
     return 1
   fi
 

@@ -14,26 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/paths.sh
-. "$LIB_DIR"/paths.sh
-
-# shellcheck source=lib/ui.sh
-. "$LIB_DIR"/ui.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions ui
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-f,--files:files:1:required"
   "-o,--output-dir:output_dir:1:required"
@@ -44,6 +37,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [files]="Comma-separated list of archives to extract, in the given order"
   [output_dir]="Directory to extract into. Required: archives from archive-create.sh hold paths relative to '/', so there is no safe default."
@@ -72,7 +66,7 @@ function archive_extract::prerequisites() {
   local prerequisites=('tar' 'pv' 'numfmt' 'gzip')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -148,7 +142,7 @@ function archive_extract::exec() {
   else
     decompressor="${decompress_cmd[0]}"
 
-    if ! lib::package::is_executable "$decompressor"; then
+    if ! lib::os::is_executable "$decompressor"; then
       lib::log::red "Extracting '$filename' needs '$decompressor', which is not in the system PATH."
       return 1
     fi
@@ -168,7 +162,7 @@ function archive_extract::exec() {
 # named by --files.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -187,7 +181,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   destination="${OPTS_VALUES[output_dir]}"
   strip="${OPTS_VALUES[strip_components]:-}"
@@ -231,14 +225,14 @@ function main() {
 
     # No default, so an unattended run without --yes stops here instead of
     # overwriting a tree nobody was watching.
-    if ! lib::ui::confirm "Continue?"; then
+    if ! ext::ui::confirm "Continue?"; then
       lib::log::red "Aborted; nothing was extracted."
       return 1
     fi
   fi
 
   if [[ $dry_run != "1" ]]; then
-    lib::paths::ensure_directory "$destination"
+    lib::os::ensure_directory "$destination"
   fi
 
   for file in "${valid_archives[@]}"; do

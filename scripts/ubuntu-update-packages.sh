@@ -14,29 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/permissions.sh
-. "$LIB_DIR"/permissions.sh
-
-# shellcheck source=lib/apt.sh
-. "$LIB_DIR"/apt.sh
-
-# shellcheck source=lib/ui.sh
-. "$LIB_DIR"/ui.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions apt ui
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   ",--full-upgrade:full_upgrade:0:optional"
   ",--autoremove:autoremove:0:optional"
@@ -46,6 +36,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [full_upgrade]="Use 'full-upgrade', which may add and remove packages to satisfy dependencies"
   [autoremove]="Remove packages that are no longer required once the upgrade is done"
@@ -79,7 +70,7 @@ function ubuntu_update_packages::prerequisites() {
   fi
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -111,12 +102,12 @@ function ubuntu_update_packages::plan() {
     lib::log::yellow "[dry-run] skipping 'apt-get update'; simulating against the current package lists."
   else
     lib::log::timed_yellow "Refreshing package lists ..."
-    lib::permissions::run_as_root apt-get update
+    lib::os::root_exec apt-get update
   fi
 
   # Simulating needs no privileges, so it is safe to run before asking the
   # operator to commit to anything.
-  summary=$(lib::apt::simulate "$action" | lib::apt::summary_line || true)
+  summary=$(ext::apt::simulate "$action" | ext::apt::summary_line || true)
 
   if [[ -z $summary ]]; then
     lib::log::yellow "Could not read an upgrade summary from apt-get; continuing anyway."
@@ -164,17 +155,17 @@ function ubuntu_update_packages::exec() {
   # second time. DEBIAN_FRONTEND keeps a stray dpkg prompt from hanging an
   # unattended run.
   lib::log::timed_yellow "Running 'apt-get $action' ..."
-  lib::permissions::run_as_root env DEBIAN_FRONTEND=noninteractive apt-get -y "$action"
+  lib::os::root_exec env DEBIAN_FRONTEND=noninteractive apt-get -y "$action"
 
   if [[ $autoremove == "1" ]]; then
     lib::log::timed_yellow "Removing packages that are no longer required ..."
-    lib::permissions::run_as_root env DEBIAN_FRONTEND=noninteractive apt-get -y autoremove
+    lib::os::root_exec env DEBIAN_FRONTEND=noninteractive apt-get -y autoremove
   fi
 
   lib::log::timed_green "Finished updating packages with 'apt-get $action'."
 
   # Worth surfacing because an unattended fleet upgrade otherwise hides it.
-  if lib::apt::reboot_required; then
+  if ext::apt::reboot_required; then
     lib::log::yellow "A reboot is required to finish applying these updates (/var/run/reboot-required)."
   fi
 }
@@ -187,7 +178,7 @@ function ubuntu_update_packages::exec() {
 # Parse the flags, plan the upgrade, confirm, then run it.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -205,7 +196,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   autoremove="${OPTS_VALUES[autoremove]:-}"
   dry_run="${OPTS_VALUES[dry_run]:-}"
@@ -228,7 +219,7 @@ function main() {
 
     # No default, so an unattended run without --yes stops here instead of
     # upgrading a production machine nobody was watching.
-    if ! lib::ui::confirm "Apply these updates?"; then
+    if ! ext::ui::confirm "Apply these updates?"; then
       lib::log::red "Aborted; nothing was upgraded."
       return 1
     fi

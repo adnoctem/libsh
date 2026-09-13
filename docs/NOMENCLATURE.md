@@ -1,7 +1,7 @@
 # `libsh` Nomenclature
 
 Use these conventions when adding or renaming files and functions. This document
-covers `lib/` and `scripts/`; executable entry points in `bin/` are outside its scope.
+covers `lib/`, `extensions/`, and `scripts/`; executable entry points in `bin/` are outside its scope.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for implementation and testing requirements.
 
 ## [lib](../lib)
@@ -12,9 +12,24 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for implementation and testing requiremen
 >
 > Private Function Nomenclature: `__libsh_<module>_<function>`
 
-TODO: Complete the module and function naming specification after the separate
-`lib/` naming review. The public/private distinction already applies; see the
-[library conventions](CONTRIBUTING.md#technical-requirements).
+### Function declarations and loader exception
+
+Every function in a sourced library file under `lib/` or `extensions/` must use
+`function name() { ... }`, including public functions and private helpers.
+Executable scripts under `scripts/`, `tools/`, and `bin/` may omit the `function`
+keyword for their own functions; test helpers may also omit it.
+
+`lib/lib.sh` is the sole exception to the public module namespace: its loader
+functions use the global `lib::<function>` scope, currently `lib::load` and
+`lib::load_extensions`. They do not repeat the filename as `lib::lib::*`.
+Other core modules must use `lib::<module>::<function>`. The exception does not
+change private helper naming or the required `function` keyword.
+
+Optional `extensions/lib<name>.sh` files expose `ext::<name>::<function>` and use
+`__libsh_ext_<name>_<function>` for private helpers.
+
+See the [library conventions](CONTRIBUTING.md#technical-requirements) for the
+remaining source and testing requirements.
 
 ## [scripts](../scripts)
 

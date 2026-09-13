@@ -66,8 +66,9 @@ GITLEAKS_CONFIG := $(CI_LINTER_DIR)/.gitleaks.toml
 # care about. 'bin/' holds executables without a .sh suffix, so it is matched
 # by type rather than by extension.
 BUNDLES := scripts lib bin tools
+EXTENSIONS := $(patsubst extensions/lib%.sh,%,$(wildcard extensions/lib*.sh))
 BIN_SOURCES := $(shell find $(BIN_DIR) -maxdepth 1 -type f ! -name '*.md' 2>/dev/null)
-SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES) $(wildcard $(TEST_DIR)/container/*.sh) $(wildcard $(TEST_DIR)/integration/*.sh) $(wildcard $(TEST_DIR)/lib/*.bats) $(wildcard $(TEST_DIR)/bin/*.bats)
+SHELL_SOURCES := $(wildcard $(LIB_DIR)/*.sh) $(wildcard extensions/*.sh) $(wildcard $(SCRIPT_DIR)/*.sh) $(wildcard $(TOOLS_DIR)/*.sh) $(BIN_SOURCES) $(wildcard $(TEST_DIR)/container/*.sh) $(wildcard $(TEST_DIR)/integration/*.sh) $(wildcard $(TEST_DIR)/lib/*.bats) $(wildcard $(TEST_DIR)/extensions/*.bats) $(wildcard $(TEST_DIR)/release/*.bats) $(wildcard $(TEST_DIR)/bin/*.bats)
 
 # Prefer a bats on PATH (CI installs one) and fall back to the submodule.
 BATS := $(shell command -v bats 2>/dev/null || echo $(TEST_DIR)/bats/core/bin/bats)
@@ -151,9 +152,10 @@ else
 build: out-dir
 ifeq ($(WHAT),)
 	$(call log_success, "Building the complete bundle and one per directory into $(OUT_DIR)")
-	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(VERSION).tar.gz" $(BUNDLES)
+	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(VERSION).tar.gz" $(BUNDLES) extensions
 	# do not remove the ending semicolon as it will break the target
 	$(foreach type,$(BUNDLES),tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(type)-$(VERSION).tar.gz" $(type);)
+	$(foreach ext,$(EXTENSIONS),tar -zcf "$(OUT_DIR)/$(PROJ_NAME)-ext-$(ext)-$(VERSION).tar.gz" extensions/lib$(ext).sh;)
 else
 	$(call log_success, "Building tarball bundle for $(WHAT)")
 	@tar -vzcf "$(OUT_DIR)/$(PROJ_NAME)-$(WHAT)-$(VERSION).tar.gz" $(WHAT)
@@ -168,6 +170,10 @@ define TEST_INFO
 #   PRINT_HELP: 'y' or 'n'
 #   WHAT: a subdirectory of test/, e.g. 'lib' or 'bin'
 endef
+.PHONY: test-release
+test-release:
+	@$(BATS) -r $(TEST_DIR)/release
+
 .PHONY: test
 ifeq ($(PRINT_HELP), y)
 test:
@@ -176,7 +182,7 @@ else
 test: update-submodules
 ifeq ($(WHAT),)
 	$(call log_success, "Testing all Bash sources!")
-	@$(BATS) -r $(TEST_DIR)/lib $(TEST_DIR)/bin
+	@$(BATS) -r $(TEST_DIR)/lib $(TEST_DIR)/extensions $(TEST_DIR)/bin
 else
 	$(call log_success, "Testing Bash sources for $(WHAT)")
 	@$(BATS) -r $(TEST_DIR)/$(WHAT)

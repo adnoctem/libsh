@@ -14,23 +14,18 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/paths.sh
-. "$LIB_DIR"/paths.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-s,--sources:sources:1:required"
   "-n,--name:name:1:optional"
@@ -43,6 +38,7 @@ OPTS=(
 )
 
 # shellcheck disable=SC2016 # '$HOME' in output_dir's help text is a literal placeholder, not meant to expand
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [sources]="Comma-separated list of files/directories to archive"
   [name]="Base name for the archive (default: the first source's basename)"
@@ -72,7 +68,7 @@ function archive_create::prerequisites() {
   local prerequisites=('tar' 'pv' 'du' 'numfmt' 'gzip' 'realpath')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -136,7 +132,7 @@ function archive_create::exec() {
     ;;
   esac
 
-  if [[ -n $compressor ]] && ! lib::package::is_executable "$compressor"; then
+  if [[ -n $compressor ]] && ! lib::os::is_executable "$compressor"; then
     lib::log::red "Compression '$compression' needs '$compressor', which is not in the system PATH."
     return 1
   fi
@@ -183,7 +179,7 @@ function archive_create::exec() {
   size=$(numfmt --to=iec-i --suffix=B "$total")
   lib::log::timed_yellow "Archiving ${#sources[@]} source(s) (≈$size before compression) into $archive ..."
 
-  lib::paths::ensure_existence "$archive"
+  lib::os::ensure_existence "$archive"
 
   # pv sits between tar and the compressor on purpose: it then measures
   # the uncompressed byte count the estimate above is based on.
@@ -201,7 +197,7 @@ function archive_create::exec() {
 # Parse the flags, resolve the sources, then create the archive.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -220,7 +216,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   destination="${OPTS_VALUES[output_dir]:-${HOME}/.libsh}"
   compression="${OPTS_VALUES[compression]:-gzip}"

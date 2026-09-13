@@ -13,6 +13,10 @@ LM_VERSION=${LIBSH_VERSION:-}
 
 LM_SHELL=''
 LM_YES=0
+LM_EXTENSIONS=${LIBSH_EXTENSIONS-}
+LM_EXTENSIONS_SET=${LIBSH_EXTENSIONS+x}
+LM_EXTENSIONS_FLAG=0
+LM_EXTENSION_ARGS=''
 
 LM_TOOLS=${INCLUDE_TOOLS:-}
 LM_TOOLS_DIR=${LIBSH_TOOLS_DIR:-}
@@ -47,6 +51,9 @@ Commands:
   install [VERSION]   Install a release (default: latest)
   update             Install the latest release from the saved repository
   status             Show installed library/manager versions and paths (offline)
+  extensions         List installed addons (offline)
+  extension-add NAME...     Add addons to the installed core release
+  extension-remove NAME...  Remove addons from future loads
   path               Print the directory containing lib.sh (offline)
   uninstall          Remove this managed installation; retain legacy backups
   self-update [VERSION]  Update the manager independently (default: latest)
@@ -59,6 +66,7 @@ Options:
       --init-shell SHELL  Opt in to a LIBSH_DIR block in .bashrc or .zshrc;
                          SHELL is bash, zsh, or auto (using $SHELL)
       --no-modify-profile Never edit shell configuration
+      --extensions LIST  Exact comma-separated addon selection (none for core only)
       --include-tools    Also install the maintenance tools bundle
       --tools-dir PATH   Stable tools path (with --include-tools)
   -y, --yes              Confirm uninstall without prompting
@@ -68,7 +76,9 @@ Defaults: /usr/local/lib/libsh and /usr/local/bin for root;
           $HOME/.local/lib/libsh and $HOME/.local/bin otherwise.
 An installed manager remembers its installation, repository and tools settings.
 LIBSH_INSTALL_DIR, LIBMAN_BIN_DIR, LIBSH_REPO and LIBSH_VERSION can override
-those settings. LIBSH_INIT_SHELL is the environment form of --init-shell.
+those settings. LIBSH_EXTENSIONS is the environment form of --extensions.
+Addon selection is saved for updates. New installations default to core only.
+LIBSH_INIT_SHELL is the environment form of --init-shell.
 No command modifies PATH, BASH_ENV, /etc/environment or the parent shell.
 HELP
 }
@@ -193,7 +203,7 @@ __libman_configure() {
       LM_TOOLS=1
       shift
       ;;
-    -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir)
+    -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir | --extensions)
       [[ $# -ge 2 && -n $2 ]] || {
         __libman_error "Missing argument for $1"
         return 2
@@ -206,6 +216,11 @@ __libman_configure() {
       --bin-dir) LM_BIN=$2 ;;
       --init-shell) LM_SHELL=$2 ;;
       --tools-dir) LM_TOOLS_DIR=$2 ;;
+      --extensions)
+        LM_EXTENSIONS=$2
+        LM_EXTENSIONS_SET=x
+        LM_EXTENSIONS_FLAG=1
+        ;;
       esac
       shift 2
       ;;
@@ -218,6 +233,15 @@ __libman_configure() {
       return 2
       ;;
     *)
+      if [[ $LM_COMMAND == extension-add || $LM_COMMAND == extension-remove ]]; then
+        [[ $1 =~ ^[a-z][a-z0-9_]*$ ]] || {
+          __libman_error 'Invalid extension name.'
+          return 2
+        }
+        LM_EXTENSION_ARGS+=" $1"
+        shift
+        continue
+      fi
       [[ $positional == 0 && ($LM_COMMAND == install || $LM_COMMAND == self-update) ]] || {
         __libman_error 'Unexpected positional argument.'
         return 2
@@ -261,6 +285,66 @@ __libman_configure() {
 
   LM_REPO=${LM_REPO:-$(__libman_read "$LM_STATE/current/repo" adnoctem/libsh)} || return 1
   LM_TOOLS=${LM_TOOLS:-$(__libman_read "$LM_STATE/current/include-tools" 0)} || return 1
+  if [[ $LM_COMMAND != install && $LM_COMMAND != update ]]; then
+    [[ $LM_EXTENSIONS_FLAG == 0 ]] || {
+      __libman_error '--extensions applies only to install or update.'
+      return 2
+    }
+    LM_EXTENSIONS_SET=''
+  fi
+  if [[ -z $LM_EXTENSIONS_SET ]]; then
+    LM_EXTENSIONS=$(__libman_read "$LM_STATE/current/extensions-selected" '') || return 1
+  else
+    [[ $LM_COMMAND == install || $LM_COMMAND == update ]] || {
+      __libman_error '--extensions applies only to install or update.'
+      return 2
+    }
+    [[ $LM_EXTENSIONS != none ]] || LM_EXTENSIONS=''
+    if [[ -n $LM_EXTENSIONS && ! $LM_EXTENSIONS =~ ^[a-z][a-z0-9_]*(,[a-z][a-z0-9_]*)*$ ]]; then
+      __libman_error 'Use comma-separated extension names, or none.'
+      return 2
+    fi
+    LM_EXTENSIONS=${LM_EXTENSIONS//,/ }
+  fi
+  [[ -z $LM_EXTENSIONS || $LM_EXTENSIONS =~ ^[a-z][a-z0-9_]*(\ [a-z][a-z0-9_]*)*$ ]] || {
+    __libman_error 'Invalid saved extension selection.'
+    return 2
+  }
+  # Normalize and validate saved metadata as strictly as command-line names.
+  local selected='' extension
+  for extension in $LM_EXTENSIONS; do
+    [[ $extension =~ ^[a-z][a-z0-9_]*$ ]] || {
+      __libman_error 'Invalid saved extension.'
+      return 2
+    }
+    [[ " $selected " == *" $extension "* ]] || selected+="${selected:+ }$extension"
+  done
+  LM_EXTENSIONS=$selected
+  if [[ $LM_COMMAND == extension-add || $LM_COMMAND == extension-remove ]]; then
+    [[ -n $LM_EXTENSION_ARGS && -z $LM_VERSION ]] || {
+      __libman_error 'Supply addon names without a version; addons use the installed core release.'
+      return 2
+    }
+    [[ -f $LM_STATE/current/lib/.libsh-version ]] || {
+      __libman_error 'No managed installation found.'
+      return 1
+    }
+    LM_VERSION=$(__libman_read "$LM_STATE/current/lib/.libsh-version" '') || return 1
+    for extension in $LM_EXTENSION_ARGS; do
+      if [[ $LM_COMMAND == extension-add ]]; then
+        [[ " $LM_EXTENSIONS " == *" $extension "* ]] || LM_EXTENSIONS+="${LM_EXTENSIONS:+ }$extension"
+      else
+        [[ " $LM_EXTENSIONS " == *" $extension "* ]] || {
+          __libman_error "Extension is not installed: $extension"
+          return 2
+        }
+        selected=" $LM_EXTENSIONS "
+        selected=${selected/ $extension / }
+        LM_EXTENSIONS=${selected# }
+        LM_EXTENSIONS=${LM_EXTENSIONS% }
+      fi
+    done
+  fi
   LM_TOOLS_DIR=${LM_TOOLS_DIR:-$(__libman_read "$LM_STATE/tools-dir" "$(dirname -- "$LM_DIR")/libsh-tools")} || return 1
   [[ $LM_REPO =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]] || {
     __libman_error 'Invalid release repository.'
@@ -377,13 +461,15 @@ __libman_version() {
 #######################################
 # Download and verify one release bundle using its exact checksum entry.
 # Globals: LM_REPO, LM_VERSION, LM_WORK
-# Arguments: bundle (lib, bin, tools)
+# Arguments: bundle (lib, bin, tools, ext-NAME)
 # Outputs: errors on stderr
 # Returns: nonzero on failure
 #######################################
 __libman_bundle() {
   local asset="libsh-$1-$LM_VERSION.tar.gz" expected actual checksum name entry listing
   local base="https://github.com/$LM_REPO/releases/download/v$LM_VERSION"
+  local extension_file=''
+  [[ $1 != ext-* ]] || extension_file="extensions/lib${1#ext-}.sh"
 
   if [[ ! -f $LM_WORK/CHECKSUMS_SHA256.txt ]]; then
     curl -fsSL --connect-timeout 15 --max-time 300 -o "$LM_WORK/CHECKSUMS_SHA256.txt" "$base/CHECKSUMS_SHA256.txt" || return 1
@@ -418,11 +504,16 @@ __libman_bundle() {
 
   listing=$(tar -tzf "$LM_WORK/$asset") || return 1
   while IFS= read -r entry; do
-    [[ $entry == "$1/"* && $entry =~ ^[a-zA-Z0-9_./-]+$ && ! $entry =~ (^|/)\.\.(/|$) ]] || {
+    [[ (($extension_file == "" && $entry == "$1/"*) || ($extension_file != "" && $entry == "$extension_file")) && $entry =~ ^[a-zA-Z0-9_./-]+$ && ! $entry =~ (^|/)\.\.(/|$) ]] || {
       __libman_error 'Unsafe bundle path.'
       return 1
     }
   done <<<"$listing"
+
+  if [[ -n $extension_file && $listing != "$extension_file" ]]; then
+    __libman_error 'An extension asset must contain exactly its one source file.'
+    return 1
+  fi
 
   listing=$(tar -tvzf "$LM_WORK/$asset") || return 1
   while IFS= read -r entry; do
@@ -580,7 +671,7 @@ __libman_shell() {
 # Returns: nonzero on failure
 #######################################
 __libman_install() {
-  local candidate manager_source
+  local candidate manager_source extension
 
   __libman_check_destination "$LM_DIR" "$LM_STATE/current/lib" lib.sh || return 1
 
@@ -609,6 +700,11 @@ __libman_install() {
     return 1
   }
 
+  for extension in $LM_EXTENSIONS; do
+    __libman_bundle "ext-$extension" || return 1
+    [[ -f $LM_WORK/extensions/lib$extension.sh ]] || return 1
+  done
+
   if [[ $LM_TOOLS == 1 ]]; then
     __libman_bundle tools || return 1
   fi
@@ -616,9 +712,12 @@ __libman_install() {
   printf '%s\n' "$LM_VERSION" >"$LM_WORK/lib/.libsh-version"
   printf '%s\n' "$LM_REPO" >"$LM_WORK/repo"
   printf '%s\n' "$LM_TOOLS" >"$LM_WORK/include-tools"
+  printf '%s\n' "$LM_EXTENSIONS" >"$LM_WORK/extensions-selected"
 
   # Candidate files must be readable by runtime users even under umask 077.
   chmod -R a+rX "$LM_WORK/lib"
+  [[ ! -d $LM_WORK/extensions ]] || chmod -R a+rX "$LM_WORK/extensions"
+  chmod a+r "$LM_WORK/extensions-selected"
   [[ $LM_TOOLS != 1 ]] || chmod -R a+rX "$LM_WORK/tools"
   chmod 755 "$LM_WORK" "$LM_STATE" "$LM_STATE/releases"
   chmod a+r "$LM_WORK/repo" "$LM_WORK/include-tools" "$LM_WORK/lib/.libsh-version"
@@ -769,6 +868,14 @@ __libman_main() {
     }
     printf '%s\n' "$LM_DIR"
     ;;
+  extensions)
+    [[ -r $LM_DIR/lib.sh ]] || {
+      __libman_error 'Library is not installed.'
+      return 1
+    }
+    local extension
+    for extension in $LM_EXTENSIONS; do printf '%s\n' "$extension"; done
+    ;;
   status)
     [[ -r $LM_DIR/lib.sh ]] || {
       __libman_error 'Library is not installed.'
@@ -778,7 +885,7 @@ __libman_main() {
       "$(__libman_read "$LM_DIR/.libsh-version" unknown)" "$LM_DIR" \
       "$(__libman_read "$LM_STATE/manager-version" uninstalled)" "$LM_BIN" "$LM_REPO"
     ;;
-  install | update | self-update | uninstall)
+  install | update | extension-add | extension-remove | self-update | uninstall)
     if [[ $LM_COMMAND != install && ! -f $LM_STATE/format ]]; then
       __libman_error 'No managed installation found.'
       return 1
@@ -792,7 +899,7 @@ __libman_main() {
     __libman_lock || return 1
 
     case $LM_COMMAND in
-    install | update) __libman_install ;;
+    install | update | extension-add | extension-remove) __libman_install ;;
     self-update) __libman_self_update ;;
     uninstall) __libman_uninstall ;;
     esac

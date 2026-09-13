@@ -16,29 +16,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/secret.sh
-. "$LIB_DIR"/secret.sh
-
-# shellcheck source=lib/history.sh
-. "$LIB_DIR"/history.sh
-
-# shellcheck source=lib/ui.sh
-. "$LIB_DIR"/ui.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions secret shell ui
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-u,--username:username:1:required"
   ",--password:password:1:optional"
@@ -56,6 +46,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [username]="Database user to connect as"
   [password]="Database password. Prefer --password-file or the MYSQL_PWD env var -- passing it here is visible to other local users via 'ps'."
@@ -91,7 +82,7 @@ function mysql_migrate_charset::prerequisites() {
   local prerequisites=('mysql')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -248,7 +239,7 @@ function mysql_migrate_charset::matches() {
 # every database named by --databases.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 #   MYSQL_PWD (read as a fallback, exported for mysql)
 # Arguments:
 #   The script's original "$@"
@@ -268,7 +259,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   password="${OPTS_VALUES[password]:-}"
   password_file="${OPTS_VALUES[password_file]:-}"
@@ -280,7 +271,7 @@ function main() {
   fi
 
   if [[ -n $password_file ]]; then
-    password=$(lib::secret::from_file "$password_file") || return 1
+    password=$(ext::secret::from_file "$password_file") || return 1
   fi
 
   export MYSQL_PWD="${password:-${MYSQL_PWD:-}}"
@@ -294,7 +285,7 @@ function main() {
   # Registered as a trap rather than a closing line: the credentials were
   # typed whether or not the migration below succeeds.
   if [[ ${OPTS_VALUES[scrub_history]:-} == "1" ]]; then
-    trap 'lib::history::scrub "${MYSQL_PWD:-}" || true' EXIT
+    trap 'ext::shell::history_scrub "${MYSQL_PWD:-}" || true' EXIT
   fi
 
   host="${OPTS_VALUES[host]}"
@@ -357,7 +348,7 @@ function main() {
 
     # No default, so an unattended run without --yes stops here instead of
     # rewriting a live database nobody was watching.
-    if ! lib::ui::confirm "Continue?"; then
+    if ! ext::ui::confirm "Continue?"; then
       lib::log::red "Aborted; nothing was migrated."
       return 1
     fi

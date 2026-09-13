@@ -14,29 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/permissions.sh
-. "$LIB_DIR"/permissions.sh
-
-# shellcheck source=lib/apt.sh
-. "$LIB_DIR"/apt.sh
-
-# shellcheck source=lib/ui.sh
-. "$LIB_DIR"/ui.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions apt ui
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-p,--packages:packages:1:optional"
   "-f,--file:file:1:optional"
@@ -47,6 +37,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [packages]="Comma-separated package names to install"
   [file]="Manifest file with one package per line, as written by ubuntu-list-packages.sh ('#' comments and blank lines are ignored)"
@@ -84,7 +75,7 @@ function ubuntu_install_packages::prerequisites() {
   fi
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -148,7 +139,7 @@ function ubuntu_install_packages::exec() {
 
   lib::log::timed_yellow "Installing ${#packages[@]} package(s) ..."
 
-  lib::permissions::run_as_root env DEBIAN_FRONTEND=noninteractive "${install_cmd[@]}"
+  lib::os::root_exec env DEBIAN_FRONTEND=noninteractive "${install_cmd[@]}"
 
   lib::log::timed_green "Finished installing ${#packages[@]} package(s)."
 }
@@ -162,7 +153,7 @@ function ubuntu_install_packages::exec() {
 # confirm, then install those.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 #   PACKAGE_PATTERN (read)
 # Arguments:
 #   The script's original "$@"
@@ -184,7 +175,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   filename="${OPTS_VALUES[file]:-}"
   skip_refresh="${OPTS_VALUES[skip_refresh]:-}"
@@ -233,7 +224,7 @@ function main() {
     # exact version is the installed one.
     name="${package%%=*}"
 
-    if lib::apt::is_installed "$name"; then
+    if ext::apt::is_installed "$name"; then
       present=$((present + 1))
       continue
     fi
@@ -257,13 +248,13 @@ function main() {
     lib::log::yellow "Working from the current package lists; they may be stale."
   else
     lib::log::timed_yellow "Refreshing package lists ..."
-    lib::permissions::run_as_root apt-get update
+    lib::os::root_exec apt-get update
   fi
 
   if [[ $dry_run != "1" && $assume_yes != "1" ]]; then
     # No default, so an unattended run without --yes stops here instead of
     # installing onto a machine nobody was watching.
-    if ! lib::ui::confirm "Install these packages?"; then
+    if ! ext::ui::confirm "Install these packages?"; then
       lib::log::red "Aborted; nothing was installed."
       return 1
     fi

@@ -9,6 +9,7 @@ RUN curl -fsSL https://ftp.gnu.org/gnu/bash/bash-4.0.tar.gz -o bash.tar.gz \
     && make -j2 && make install
 WORKDIR /src
 COPY lib lib
+COPY extensions extensions
 COPY bin/install bin/libman bin/
 COPY test/container/install.sh test/container/install.sh
 RUN bash test/container/install.sh
@@ -20,9 +21,11 @@ COPY --from=build /opt/bash-4.0 /opt/bash-4.0
 COPY --from=build /usr/local/lib/libsh.libman /usr/local/lib/libsh.libman
 COPY bin/install bin/libman /opt/libsh-test/bin/
 COPY scripts /opt/libsh-test/scripts
+COPY extensions /opt/libsh-test/extensions
 COPY test/bin /opt/libsh-test/test/bin
 COPY test/bats /opt/libsh-test/test/bats
-COPY test/lib/secret.bats test/lib/networking.bats /opt/libsh-test/test/lib/
+COPY test/extensions/secret.bats /opt/libsh-test/test/extensions/
+COPY test/lib/net.bats /opt/libsh-test/test/lib/
 COPY test/integration /opt/libsh-test/test/integration
 COPY test/container/run.sh /opt/libsh-test/run.sh
 RUN ln -s /usr/local/lib/libsh.libman/current/lib /usr/local/lib/libsh \

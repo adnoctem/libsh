@@ -6,7 +6,8 @@ setup() {
 	load "$REPO_ROOT/test/bats/plugins/bats-support/load"
 	load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
 
-	source "$REPO_ROOT/lib/utils.sh"
+	source "$REPO_ROOT/lib/lib.sh"
+	lib::load_extensions py
 
 	TEST_TMP=$(mktemp -d)
 
@@ -25,43 +26,20 @@ teardown() {
 	[[ -n ${TEST_TMP:-} ]] && rm -rf "$TEST_TMP"
 }
 
-# lib::utils::rc
-@test "lib::utils::rc sources an existing .bashrc" {
-	printf 'LIBSH_RC_MARKER=bashrc\n' >"$HOME/.bashrc"
-
-	lib::utils::rc
-
-	assert_equal "${LIBSH_RC_MARKER:-}" "bashrc"
-}
-
-@test "lib::utils::rc sources an existing .zshrc" {
-	printf 'LIBSH_ZSH_MARKER=zshrc\n' >"$HOME/.zshrc"
-
-	lib::utils::rc
-
-	assert_equal "${LIBSH_ZSH_MARKER:-}" "zshrc"
-}
-
-@test "lib::utils::rc succeeds when neither rc file exists" {
-	run lib::utils::rc
-
-	assert_success
-}
-
-# lib::utils::venv
-@test "lib::utils::venv activates an existing venv" {
+# ext::py::venv
+@test "ext::py::venv activates an existing venv" {
 	mkdir -p "$TEST_TMP/project/.venv/bin"
 	printf 'LIBSH_VENV_MARKER=activated\n' >"$TEST_TMP/project/.venv/bin/activate"
 	cd "$TEST_TMP/project" || return 1
 
-	lib::utils::venv
+	ext::py::venv
 
 	assert_equal "${LIBSH_VENV_MARKER:-}" "activated"
 }
 
 # The venv path used to be written as "(pwd)/.venv" without the '$', which
 # created a directory literally named '(pwd)' in the working directory.
-@test "lib::utils::venv creates the venv in the working directory" {
+@test "ext::py::venv creates the venv in the working directory" {
 	mkdir -p "$TEST_TMP/fresh" "$TEST_TMP/bin"
 
 	cat >"$TEST_TMP/bin/python3" <<-'FAKE'
@@ -78,13 +56,13 @@ teardown() {
 	export PATH="$TEST_TMP/bin:$PATH"
 	cd "$TEST_TMP/fresh" || return 1
 
-	lib::utils::venv
+	ext::py::venv
 
 	assert_equal "$(cat "$FAKE_VENV_LOG")" "$TEST_TMP/fresh/.venv"
 	refute [ -e "$TEST_TMP/fresh/(pwd)" ]
 }
 
-@test "lib::utils::venv activates the venv it just created" {
+@test "ext::py::venv activates the venv it just created" {
 	mkdir -p "$TEST_TMP/fresh2" "$TEST_TMP/bin"
 
 	cat >"$TEST_TMP/bin/python3" <<-'FAKE'
@@ -98,12 +76,12 @@ teardown() {
 	export PATH="$TEST_TMP/bin:$PATH"
 	cd "$TEST_TMP/fresh2" || return 1
 
-	lib::utils::venv
+	ext::py::venv
 
 	assert_equal "${LIBSH_VENV_MARKER:-}" "created"
 }
 
-@test "lib::utils::venv reports a failure from python" {
+@test "ext::py::venv reports a failure from python" {
 	mkdir -p "$TEST_TMP/fresh3" "$TEST_TMP/bin"
 
 	printf '#!/usr/bin/env bash\nexit 4\n' >"$TEST_TMP/bin/python3"
@@ -113,7 +91,7 @@ teardown() {
 	export PATH="$TEST_TMP/bin:$PATH"
 	cd "$TEST_TMP/fresh3" || return 1
 
-	run lib::utils::venv
+	run ext::py::venv
 
 	assert_failure 4
 }

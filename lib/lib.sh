@@ -1,55 +1,97 @@
 # shellcheck shell=bash
 
-# Single entrypoint for the whole library.
-#
-# Source this one file to get every lib:: function, instead of naming each
-# module in every script:
-#
-#   . "$LIB_DIR"/lib.sh
-#
-# Modules are discovered rather than listed, so adding lib/<module>.sh needs
-# no edit here. They only define functions, so load order does not matter.
-# Sourcing twice is harmless: the second pass just redefines the same
-# functions, and LIBSH_LOADED lets a caller skip it entirely.
-
-# shellcheck disable=SC2034 # exported for callers that want to test it, not used here
+# Source this entrypoint for core; request installed addons separately.
 LIBSH_LIB_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)" || return 1
 
 #######################################
-# Source every module next to this file.
+# Load core modules from this physically resolved library directory.
 # Globals:
-#   LIBSH_LIB_DIR (read)
-#   LIBSH_LOADED (written)
-#   LIBSH_LOADED_VERSION (written): release version, or development for a checkout
+#   LIBSH_LIB_DIR (read), LIBSH_LOADED, LIBSH_LOADED_VERSION (written)
+#   __libsh_lib_core_dir, __libsh_lib_extensions (internal load state)
 # Arguments:
-#   None
+#   None. Use lib::load_extensions for addons.
+# Outputs:
+#   Errors on stderr.
 # Returns:
-#   0 on success; nonzero for missing modules, module failures or unreadable metadata.
+#   0 success, 1 missing/unreadable sources, 2 unexpected arguments.
+#   Source failures propagate their status. Successfully loaded core is reused.
 #######################################
-function lib::lib::load() {
-  local module found=0
-
-  for module in "$LIBSH_LIB_DIR"/*.sh; do
-    [[ -f $module ]] || continue
-    [[ "$(basename "$module")" == "lib.sh" ]] && continue
-
-    # shellcheck disable=SC1090 # the path is only known at runtime
-    . "$module" || return $?
-    found=$((found + 1))
-  done
-
-  if [[ $found -eq 0 ]]; then
-    printf 'lib.sh: no modules found in %s\n' "$LIBSH_LIB_DIR" >&2
-    return 1
+# shellcheck disable=SC2120 # arguments are explicitly rejected
+function lib::load() {
+  local __libsh_lib_module __libsh_lib_found=0
+  local __libsh_lib_version=development
+  if [[ $# != 0 ]]; then
+    printf 'libsh: lib::load takes no arguments; use lib::load_extensions for addons.\n' >&2
+    return 2
   fi
 
-  # Release metadata is data, never shell code. Checkouts have no release stamp.
-  LIBSH_LOADED_VERSION=development
-  if [[ -f $LIBSH_LIB_DIR/.libsh-version ]]; then
-    IFS= read -r LIBSH_LOADED_VERSION <"$LIBSH_LIB_DIR/.libsh-version" || return 1
+  if [[ ${__libsh_lib_core_dir:-} != "$LIBSH_LIB_DIR" ]]; then
+    if [[ -f $LIBSH_LIB_DIR/.libsh-version ]]; then
+      IFS= read -r __libsh_lib_version <"$LIBSH_LIB_DIR/.libsh-version" || return 1
+    fi
+    for __libsh_lib_module in "$LIBSH_LIB_DIR"/*.sh; do
+      [[ -f $__libsh_lib_module ]] || continue
+      [[ ${__libsh_lib_module##*/} == lib.sh ]] && continue
+      # shellcheck disable=SC1090 # physically resolved module path
+      . "$__libsh_lib_module" || return $?
+      __libsh_lib_found=$((__libsh_lib_found + 1))
+    done
+    if [[ $__libsh_lib_found == 0 ]]; then
+      printf 'libsh: no core modules found in %s\n' "$LIBSH_LIB_DIR" >&2
+      return 1
+    fi
+    # shellcheck disable=SC2034 # public loader metadata
+    LIBSH_LOADED=$__libsh_lib_found
+    # shellcheck disable=SC2034 # public release metadata
+    LIBSH_LOADED_VERSION=$__libsh_lib_version
+    __libsh_lib_extensions=' '
+    __libsh_lib_core_dir=$LIBSH_LIB_DIR
   fi
-  LIBSH_LOADED="$found"
+
   return 0
 }
 
-lib::lib::load
+#######################################
+# Load explicitly requested installed addons after ensuring core is loaded.
+# Globals:
+#   LIBSH_LIB_DIR, __libsh_lib_extensions (read/write via loader)
+# Arguments:
+#   Zero or more extension names, e.g. secret git apt.
+# Outputs:
+#   Errors on stderr. Never installs or downloads extensions.
+# Returns:
+#   0 success, 1 unavailable source, 2 invalid name; source failures propagate.
+#   Repeated loads are harmless. Failed sources may have partial shell effects
+#   and are never marked loaded. Preflight checks every requested addon first.
+#######################################
+function lib::load_extensions() {
+  local __libsh_lib_name
+
+  # Preflight the entire request before sourcing any requested addon.
+  for __libsh_lib_name in ${1+"$@"}; do
+    if [[ ! $__libsh_lib_name =~ ^[a-z][a-z0-9_]*$ ]]; then
+      printf 'libsh: invalid extension name: %s\n' "$__libsh_lib_name" >&2
+      return 2
+    fi
+    if [[ ! -f $LIBSH_LIB_DIR/../extensions/lib$__libsh_lib_name.sh ||
+      ! -r $LIBSH_LIB_DIR/../extensions/lib$__libsh_lib_name.sh ]]; then
+      printf 'libsh: extension %s is unavailable; install it for this core release.\n' "$__libsh_lib_name" >&2
+      return 1
+    fi
+  done
+
+  # shellcheck disable=SC2119 # core takes no arguments
+  lib::load || return $?
+
+  for __libsh_lib_name in ${1+"$@"}; do
+    [[ $__libsh_lib_extensions == *" $__libsh_lib_name "* ]] && continue
+    # shellcheck disable=SC1090 # name validated above; same release as core
+    . "$LIBSH_LIB_DIR/../extensions/lib$__libsh_lib_name.sh" || return $?
+    __libsh_lib_extensions+="$__libsh_lib_name "
+  done
+  return 0
+}
+
+# Sourcing always loads core, independently of consumer positional arguments.
+# shellcheck disable=SC2119
+lib::load

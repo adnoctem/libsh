@@ -75,6 +75,7 @@ jobs:
       - name: Run the test suite
         run: |
           make test
+          make test-release
 
       - name: Install TCP integration dependency
         if: runner.os == 'Linux'

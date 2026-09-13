@@ -15,14 +15,14 @@
 #######################################
 
 # Return the repository's root path
-lib::git::toplevel() {
+function ext::git::toplevel() {
   path=$(git rev-parse --show-toplevel)
 
   echo "${path%/}"
 }
 
 # Check if a remote exists
-lib::git::remote_exists() {
+function ext::git::remote_exists() {
   remote=${1}
 
   git remote show | grep -E "$remote"
@@ -32,7 +32,7 @@ lib::git::remote_exists() {
 }
 
 # Check if a branch exists
-lib::git::branch_exists() {
+function ext::git::branch_exists() {
   branch=${1}
 
   git branch -l | grep -E "$branch"

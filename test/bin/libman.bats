@@ -10,11 +10,12 @@ setup() {
 	export LIBSH_INSTALL_DIR="$test_root/quote' dollar\$ space/libsh"
 	export LIBMAN_BIN_DIR="$BATS_TEST_TMPDIR/commands"
 	export FIXTURES="$BATS_TEST_TMPDIR/releases"
-	unset LIBSH_DIR LIBSH_VERSION LIBSH_REPO INCLUDE_TOOLS LIBSH_TOOLS_DIR LIBSH_INIT_SHELL LIBSH_PROFILE_TARGETS LIBSH_NO_MODIFY_PROFILE
+	unset LIBSH_EXTENSIONS LIBSH_DIR LIBSH_VERSION LIBSH_REPO INCLUDE_TOOLS LIBSH_TOOLS_DIR LIBSH_INIT_SHELL LIBSH_PROFILE_TARGETS LIBSH_NO_MODIFY_PROFILE
 	mkdir -p "$HOME" "$FIXTURES" "$BATS_TEST_TMPDIR/fake"
 	cat >"$BATS_TEST_TMPDIR/fake/curl" <<'CURL'
 #!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' "${@: -1}" >>"$FIXTURES/downloads"
 [[ $1 == -fsSL && $2 == --connect-timeout && $4 == --max-time && $6 == -o ]]
 if [[ $7 == /dev/null ]]; then
   printf 'https://github.com/%s/releases/tag/v2.0.0' "${LIBSH_REPO:-adnoctem/libsh}"
@@ -31,8 +32,15 @@ CURL
 
 make_release() {
 	local version=$1 dir="$FIXTURES/v$1" src="$BATS_TEST_TMPDIR/source"
-	mkdir -p "$dir" "$src/lib" "$src/bin" "$src/tools"
+	mkdir -p "$dir" "$src/lib" "$src/bin" "$src/tools" "$src/extensions"
 	cp "$REPO_ROOT/lib/"*.sh "$src/lib/"
+	cp "$REPO_ROOT/extensions/"*.sh "$src/extensions/"
+	local extension
+	for extension in "$src"/extensions/lib*.sh; do
+		extension=${extension##*/lib}
+		extension=${extension%.sh}
+		tar -czf "$dir/libsh-ext-$extension-$version.tar.gz" -C "$src" "extensions/lib$extension.sh"
+	done
 	cp "$REPO_ROOT/bin/libman" "$src/bin/libman"
 	printf '# version %s\n' "$version" >>"$src/bin/libman"
 	printf '# fixture\n' >"$src/tools/release-prepare.sh"
@@ -192,7 +200,7 @@ install_release() {
 	install_release
 	local old
 	old=$(readlink "$LIBSH_INSTALL_DIR.libman/current")
-	run bash -c 'source "$LIBSH_INSTALL_DIR/lib.sh"; "$LIBMAN_BIN_DIR/libman" update >/dev/null; lib::lib::load; printf "%s\n%s" "$LIBSH_LIB_DIR" "$LIBSH_LOADED_VERSION"'
+	run bash -c 'source "$LIBSH_INSTALL_DIR/lib.sh"; "$LIBMAN_BIN_DIR/libman" update >/dev/null; lib::load; printf "%s\n%s" "$LIBSH_LIB_DIR" "$LIBSH_LOADED_VERSION"'
 	assert_success
 	assert_output "$old/lib"$'\n1.0.0'
 }
@@ -219,7 +227,7 @@ install_release() {
 }
 
 @test "all operational scripts bootstrap from the selected library" {
-	install_release
+	install_release --extensions apt,secret,shell,ui
 	local script
 	for script in "$REPO_ROOT"/scripts/*.sh; do
 		run env LIBSH_DIR="$LIBSH_INSTALL_DIR" bash "$script" --help
@@ -261,4 +269,139 @@ install_release() {
 	run bash -c 'source "$1/lib.sh"; printf "%s" "$LIBSH_LOADED_VERSION"' _ "$library"
 	assert_success
 	assert_output development
+}
+
+@test "core-only install never downloads extensions" {
+	install_release
+	run grep 'libsh-ext-' "$FIXTURES/downloads"
+	assert_failure 1
+	run "$LIBMAN_BIN_DIR/libman" extensions
+	assert_success
+	assert_output ''
+	run bash -c 'source "$LIBSH_INSTALL_DIR/lib.sh"; lib::load_extensions secret'
+	assert_failure 1
+}
+
+@test "selected addons install and load without unrelated downloads" {
+	install_release --extensions secret,git
+	run grep -E 'libsh-ext-(apt|ui|py|shell)-' "$FIXTURES/downloads"
+	assert_failure 1
+	run "$LIBMAN_BIN_DIR/libman" extensions
+	assert_success
+	assert_output $'secret\ngit'
+	run bash -c 'source "$LIBSH_INSTALL_DIR/lib.sh"; lib::load_extensions secret git; declare -F ext::secret::resolve ext::git::toplevel'
+	assert_success
+}
+
+@test "addon lifecycle pins the core and preserves selection across updates" {
+	install_release --extensions secret
+	local original
+	original=$(readlink "$LIBSH_INSTALL_DIR.libman/current")
+	run "$LIBMAN_BIN_DIR/libman" extension-add git apt
+	assert_success
+	[[ $(<"$LIBSH_INSTALL_DIR/.libsh-version") == 1.0.0 ]]
+	[[ -r $original/extensions/libsecret.sh ]]
+	run "$LIBMAN_BIN_DIR/libman" extension-remove secret
+	assert_success
+	run "$LIBMAN_BIN_DIR/libman" update
+	assert_success
+	[[ $(<"$LIBSH_INSTALL_DIR/.libsh-version") == 2.0.0 ]]
+	run "$LIBMAN_BIN_DIR/libman" extensions
+	assert_output $'git\napt'
+	run "$LIBMAN_BIN_DIR/libman" update --extensions none
+	assert_success
+	run "$LIBMAN_BIN_DIR/libman" extensions
+	assert_output ''
+}
+
+@test "missing and corrupted addon assets leave current release intact" {
+	install_release --extensions secret
+	local old
+	old=$(readlink "$LIBSH_INSTALL_DIR.libman/current")
+	run "$LIBMAN_BIN_DIR/libman" extension-add missing
+	assert_failure
+	[[ $(readlink "$LIBSH_INSTALL_DIR.libman/current") == "$old" ]]
+	printf 'corrupt' >>"$FIXTURES/v2.0.0/libsh-ext-secret-2.0.0.tar.gz"
+	run "$LIBMAN_BIN_DIR/libman" update
+	assert_failure
+	[[ $(readlink "$LIBSH_INSTALL_DIR.libman/current") == "$old" ]]
+	run "$LIBMAN_BIN_DIR/libman" extensions
+	assert_output secret
+	[[ ! -d $LIBSH_INSTALL_DIR.libman-lock ]]
+}
+
+@test "addon loader stays on the resolved release after update" {
+	install_release --extensions secret
+	run bash -c '
+  source "$LIBSH_INSTALL_DIR/lib.sh"
+  original=$LIBSH_LIB_DIR
+  "$LIBMAN_BIN_DIR/libman" update --extensions none >/dev/null || exit
+  [[ $LIBSH_LIB_DIR == "$original" && $LIBSH_LOADED_VERSION == 1.0.0 ]] || exit 1
+  lib::load_extensions secret || exit
+  declare -F ext::secret::resolve
+ '
+	assert_success
+}
+
+@test "addon names and selection are validated without downloading" {
+	install_release
+	local old
+	old=$(readlink "$LIBSH_INSTALL_DIR.libman/current")
+	run "$LIBMAN_BIN_DIR/libman" extension-add ../secret
+	assert_failure 2
+	run "$LIBMAN_BIN_DIR/libman" update --extensions secret,,git
+	assert_failure 2
+	run "$LIBMAN_BIN_DIR/libman" extension-remove secret
+	assert_failure 2
+	[[ $(readlink "$LIBSH_INSTALL_DIR.libman/current") == "$old" ]]
+}
+
+@test "piped bootstrap forwards explicit addon selection" {
+	run bash -c 'cat "$1/bin/install" | bash -s -- --version 1.0.0 --extensions secret' _ "$REPO_ROOT"
+	assert_success
+	run "$LIBMAN_BIN_DIR/libman" extensions
+	assert_output secret
+}
+
+@test "addon install environment does not override offline saved selection" {
+	install_release --extensions secret
+	run env LIBSH_EXTENSIONS=git "$LIBMAN_BIN_DIR/libman" extensions
+	assert_success
+	assert_output secret
+}
+
+@test "addon archive cannot overwrite core files even with a valid checksum" {
+	install_release
+	local old
+	old=$(readlink "$LIBSH_INSTALL_DIR.libman/current")
+	tar -czf "$FIXTURES/v1.0.0/libsh-ext-git-1.0.0.tar.gz" -C "$BATS_TEST_TMPDIR/source" lib/lib.sh
+	(cd "$FIXTURES/v1.0.0" && { if command -v sha256sum >/dev/null; then sha256sum ./*.tar.gz; else shasum -a 256 ./*.tar.gz; fi; } | sed 's|  ./|  |' >CHECKSUMS_SHA256.txt)
+	run "$LIBMAN_BIN_DIR/libman" extension-add git
+	assert_failure
+	assert_output --partial 'Unsafe bundle path'
+	[[ $(readlink "$LIBSH_INSTALL_DIR.libman/current") == "$old" ]]
+}
+
+@test "scripts diagnose an old explicit installation instead of falling back" {
+	local old="$BATS_TEST_TMPDIR/old-library" script
+	mkdir -p "$old"
+	printf 'lib::lib::load() { :; }\nlib::lib::load\n' >"$old/lib.sh"
+	for script in "$REPO_ROOT"/scripts/*.sh; do
+		run env LIBSH_DIR="$old" bash "$script" --help
+		assert_failure 1
+		assert_output --partial "Incompatible libsh at $old"
+		refute_output --partial 'command not found'
+	done
+}
+
+@test "Ubuntu scripts can explicitly select the checkout instead of an older installation" {
+	local script checkout="$BATS_TEST_TMPDIR/checkout"
+	mkdir -p "$checkout"
+	cp -R "$REPO_ROOT/lib/" "$checkout/lib"
+	cp -R "$REPO_ROOT/extensions/" "$checkout/extensions"
+	for script in ubuntu-update-packages ubuntu-update-security; do
+		run env LIBSH_DIR="$checkout/lib" bash "$REPO_ROOT/scripts/$script.sh" --help
+		assert_success
+		assert_output --partial "Usage: $script.sh"
+	done
 }

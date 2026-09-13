@@ -14,26 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/permissions.sh
-. "$LIB_DIR"/permissions.sh
-
-# shellcheck source=lib/ui.sh
-. "$LIB_DIR"/ui.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions ui
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   ",--skip-aur:skip_aur:0:optional"
   "-y,--yes:assume_yes:0:optional"
@@ -42,6 +35,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [skip_aur]="Update only the official repositories, leaving AUR packages alone"
   [assume_yes]="Skip the confirmation prompt (required for unattended runs)"
@@ -79,7 +73,7 @@ function arch_update_packages::prerequisites() {
   fi
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -88,7 +82,7 @@ function arch_update_packages::prerequisites() {
   done
 
   for prerequisite in "${optional[@]}"; do
-    if lib::package::is_executable "${prerequisite}"; then
+    if lib::os::is_executable "${prerequisite}"; then
       lib::log::green "Found optional package '${prerequisite}' in system PATH."
     else
       lib::log::yellow "Optional package '${prerequisite}' is missing: AUR updates need 'yay', and without 'checkupdates' (pacman-contrib) the pending list is read from a possibly stale sync database."
@@ -113,7 +107,7 @@ function arch_update_packages::prerequisites() {
 #   One "<name> <old> -> <new>" line per pending package to stdout.
 #######################################
 function arch_update_packages::pending() {
-  if lib::package::is_executable checkupdates; then
+  if lib::os::is_executable checkupdates; then
     # Exits 2 when there is nothing to do, which is not an error here.
     checkupdates 2>/dev/null || true
   else
@@ -157,14 +151,14 @@ function arch_update_packages::exec() {
   fi
 
   lib::log::timed_yellow "Updating official packages with 'pacman' ..."
-  lib::permissions::run_as_root "${pacman_cmd[@]}"
+  lib::os::root_exec "${pacman_cmd[@]}"
 
   if [[ $skip_aur == "1" ]]; then
     lib::log::timed_green "Finished updating packages; AUR skipped on request."
     return 0
   fi
 
-  if ! lib::package::is_executable yay; then
+  if ! lib::os::is_executable yay; then
     lib::log::yellow "'yay' is not installed; AUR packages were left alone."
     return 0
   fi
@@ -188,7 +182,7 @@ function arch_update_packages::exec() {
 # Parse the flags, list what is pending, confirm, then upgrade.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 #   KERNEL_PACKAGES (read)
 # Arguments:
 #   The script's original "$@"
@@ -207,7 +201,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   skip_aur="${OPTS_VALUES[skip_aur]:-}"
   assume_yes="${OPTS_VALUES[assume_yes]:-}"
@@ -241,7 +235,7 @@ function main() {
   if [[ $dry_run != "1" && $assume_yes != "1" ]]; then
     # No default, so an unattended run without --yes stops here instead of
     # upgrading a machine nobody was watching.
-    if ! lib::ui::confirm "Apply these updates?"; then
+    if ! ext::ui::confirm "Apply these updates?"; then
       lib::log::red "Aborted; nothing was upgraded."
       return 1
     fi

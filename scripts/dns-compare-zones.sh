@@ -14,23 +14,18 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/array.sh
-. "$LIB_DIR"/array.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-z,--zone:zone:1:required"
   "-n,--nameservers:nameservers:1:optional"
@@ -40,6 +35,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [zone]="DNS zone to compare, e.g. 'adnoctem.co'"
   [nameservers]="The two nameservers to compare, comma-separated (default: 8.8.8.8,1.1.1.1)"
@@ -67,7 +63,7 @@ function dns_compare_zones::prerequisites() {
   local prerequisites=('dig')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -130,7 +126,7 @@ function dns_compare_zones::exec() {
 # nameservers.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -150,7 +146,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   zone="${OPTS_VALUES[zone]}"
 
@@ -183,7 +179,7 @@ function main() {
     if [[ $rc -eq 1 ]]; then
       # NS and SOA differ legitimately between a hidden primary and its
       # secondaries, so they warn instead of failing the run.
-      if lib::array::contains "$type" "${warn_types[@]}"; then
+      if lib::data::array_contains "$type" "${warn_types[@]}"; then
         warnings=$((warnings + 1))
       else
         failures=$((failures + 1))

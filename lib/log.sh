@@ -16,7 +16,7 @@
 # Outputs:
 #   The given string, in the given color.
 #######################################
-function lib::log::write() {
+function lib::log::print() {
   local color=${1} message=${2:-}
 
   # printf, not 'echo -e': the message is data. A backslash in a path, a
@@ -39,22 +39,22 @@ function lib::log::plain() {
 
 # Write red output to stderr
 function lib::log::red() {
-  lib::log::write "31m" "${1}" >&2
+  lib::log::print "31m" "${1}" >&2
 }
 
 # Write yellow output to stdout
 function lib::log::yellow() {
-  lib::log::write "33m" "${1}"
+  lib::log::print "33m" "${1}"
 }
 
 # Write green output to stdout
 function lib::log::green() {
-  lib::log::write "32m" "${1}"
+  lib::log::print "32m" "${1}"
 }
 
 # Write cyan output to stdout
 function lib::log::cyan() {
-  lib::log::write "36m" "${1}"
+  lib::log::print "36m" "${1}"
 }
 
 #######################################
@@ -76,7 +76,7 @@ function lib::log::timed() {
   # colon RFC 3339 requires is inserted afterward instead.
   time=$(date '+%Y-%m-%d %H:%M:%S%z' | sed -E 's/([0-9]{2})([0-9]{2})$/\1:\2/')
 
-  lib::log::write "$color" "[$time]: $message"
+  lib::log::print "$color" "[$time]: $message"
 }
 
 # Write timestamped red output to stderr

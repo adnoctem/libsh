@@ -1,9 +1,9 @@
 # shellcheck shell=bash
 
-# lib::ui -- interactive helpers for steps that don't have a byte count
+# ext::ui -- interactive helpers for steps that don't have a byte count
 # to drive `pv`. Use `pv` for anything streaming bytes (dumps, transfers,
 # copies) -- it already gives accurate progress/ETA and shouldn't be
-# reimplemented here. Use lib::ui:: for steps that are either indeterminate
+# reimplemented here. Use ext::ui:: for steps that are either indeterminate
 # (waiting on a remote call) or need a yes/no gate before something
 # destructive.
 
@@ -16,7 +16,7 @@
 # Returns:
 #   The watched process's exit code.
 #######################################
-function lib::ui::spinner() {
+function ext::ui::spinner() {
   local pid=$1
   local message=${2:-"Working..."}
   local -a frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
@@ -50,7 +50,7 @@ function lib::ui::spinner() {
 # Returns:
 #   0 for yes, 1 for no.
 #######################################
-function lib::ui::confirm() {
+function ext::ui::confirm() {
   local prompt=$1
   local default=${2:-}
 
@@ -96,15 +96,15 @@ function lib::ui::confirm() {
 # Outputs:
 #   The banner.
 #######################################
-function lib::ui::print_banner() {
+function ext::ui::print_banner() {
   local title=${1} source_url=${2:-}
 
-  lib::ui::print_banner_divider
+  ext::ui::print_banner_divider
   printf 'Welcome to the Ad Noctem Collective build of %s!\n' "$title"
   if [[ -n $source_url ]]; then
     printf 'Read the entire source code on GitHub at: %s\n' "$source_url"
   fi
-  lib::ui::print_banner_divider
+  ext::ui::print_banner_divider
 }
 
 #######################################
@@ -116,6 +116,6 @@ function lib::ui::print_banner() {
 # Outputs:
 #   The divider.
 #######################################
-function lib::ui::print_banner_divider() {
+function ext::ui::print_banner_divider() {
   printf '%60s\n' " " | tr ' ' '-'
 }

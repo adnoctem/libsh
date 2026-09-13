@@ -39,6 +39,7 @@ Bootstrap libman and install libsh. All options are forwarded to libman install.
       --bin-dir PATH     Manager command directory
       --init-shell SHELL  Opt in to LIBSH_DIR in .bashrc or .zshrc (bash|zsh|auto)
       --no-modify-profile Never modify shell configuration (the default)
+      --extensions LIST  Optional comma-separated addons (default: core only)
       --include-tools    Install maintenance tools too
       --tools-dir PATH   Maintenance tools location
 No PATH, BASH_ENV or parent-shell changes are made.
@@ -46,7 +47,7 @@ Piped use: curl -fsSL <installer-url> | bash -s -- --init-shell bash
 HELP
       return 0
       ;;
-    -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir)
+    -v | --version | -r | --repo | -d | --install-dir | --bin-dir | --init-shell | --tools-dir | --extensions)
       [[ $# -gt 0 && -n $1 ]] || {
         printf 'install: missing value for %s\n' "$option" >&2
         return 2

@@ -14,23 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/apt.sh
-. "$LIB_DIR"/apt.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions apt
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   ",--fail-on:fail_on:1:optional"
   ",--max-list-age:max_list_age:1:optional"
@@ -38,6 +34,7 @@ OPTS=(
   ",--check-prerequisites:check_prerequisites:0:optional"
 )
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [fail_on]="What makes the exit code non-zero: any, security, reboot or never (default: any)"
   [max_list_age]="Warn when the package lists are older than this many days (default: 7)"
@@ -63,7 +60,7 @@ function ubuntu_test_updates::prerequisites() {
   local prerequisites=('apt-get' 'awk' 'stat')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -89,7 +86,7 @@ function ubuntu_test_updates::prerequisites() {
 # would make this a different verb.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 # Arguments:
 #   The script's original "$@"
 # Returns:
@@ -109,7 +106,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 2
+  lib::opt::parse "$@" || return 2
 
   fail_on="${OPTS_VALUES[fail_on]:-any}"
   max_list_age="${OPTS_VALUES[max_list_age]:-7}"
@@ -127,12 +124,12 @@ function main() {
     return 2
   fi
 
-  simulation=$(lib::apt::simulate upgrade || true)
-  total=$(printf '%s\n' "$simulation" | lib::apt::pending_packages | grep -c . || true)
-  security=$(printf '%s\n' "$simulation" | lib::apt::security_packages | grep -c . || true)
-  summary=$(printf '%s\n' "$simulation" | lib::apt::summary_line)
+  simulation=$(ext::apt::simulate upgrade || true)
+  total=$(printf '%s\n' "$simulation" | ext::apt::pending_packages | grep -c . || true)
+  security=$(printf '%s\n' "$simulation" | ext::apt::security_packages | grep -c . || true)
+  summary=$(printf '%s\n' "$simulation" | ext::apt::summary_line)
 
-  age=$(lib::apt::lists_age_days || true)
+  age=$(ext::apt::lists_age_days || true)
 
   if [[ $age == "-1" ]]; then
     lib::log::yellow "Could not determine when the package lists were last refreshed."
@@ -153,11 +150,11 @@ function main() {
 
     if [[ $security -gt 0 ]]; then
       lib::log::yellow "Security updates pending:"
-      printf '%s\n' "$simulation" | lib::apt::security_packages | sed 's/^/  - /'
+      printf '%s\n' "$simulation" | ext::apt::security_packages | sed 's/^/  - /'
     fi
   fi
 
-  if lib::apt::reboot_required; then
+  if ext::apt::reboot_required; then
     reboot="1"
     lib::log::yellow "A reboot is required to finish applying earlier updates."
   else

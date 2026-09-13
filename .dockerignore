@@ -2,6 +2,8 @@
 *
 !lib/
 !lib/**
+!extensions/
+!extensions/**
 !bin/
 !bin/install
 !bin/libman
@@ -15,8 +17,9 @@
 !test/integration/
 !test/integration/**
 !test/lib/
-!test/lib/secret.bats
-!test/lib/networking.bats
+!test/lib/net.bats
+!test/extensions/
+!test/extensions/secret.bats
 !test/bats/
 !test/bats/**
 **/.git

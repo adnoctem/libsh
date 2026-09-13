@@ -4,7 +4,7 @@ These executables are standalone: none requires an installed copy of `libsh`.
 
 - **`install`** bootstraps `libman` and installs the library from a verified release.
 - **`libman`** manages a machine's library installation, updates, and removal.
-- **`libtree`** vendors the library into another repository through `git subtree`.
+- **`libtree`** vendors core and selected addons into another repository through `git subtree`.
 
 ## Install and Configure Your Shell
 
@@ -44,9 +44,34 @@ The former `--profile-targets` / `LIBSH_PROFILE_TARGETS` settings are rejected w
 When migrating an older installation, manually remove any old libsh auto-sourcing blocks, profile.d file, or
 `BASH_ENV` setting you no longer want; the manager does not edit those locations.
 
+## Optional Extensions
+
+A new installation contains core only. Add selected extensions with `--extensions secret,git,apt`
+or `LIBSH_EXTENSIONS=secret,git,apt`. Each selected addon is downloaded as a separate checksummed asset;
+unselected addons are not downloaded. `--extensions none` selects core only.
+
+For `install` and `update`, an explicit selection replaces the saved selection; otherwise updates preserve it.
+`extension-add NAME...` and `extension-remove NAME...` change the selection at the installed core version.
+Core and addons share a release version and are activated together. Missing or invalid assets leave the current
+release intact. Removing an addon does not remove functions from shells that already sourced it.
+
+Source core, then request installed addons explicitly:
+
+```bash
+source "$LIBSH_DIR/lib.sh"
+lib::load_extensions secret git
+```
+
+The loader resolves addons beside the physically resolved core release, returns errors for missing addons,
+and performs no runtime downloads. Operational scripts require their declared addons; the default core-only
+installation does not promise to supply every script's dependencies.
+
 ## Manage an Installation
 
 ```shell
+libman extensions         # Installed addon names; offline
+libman extension-add secret git  # Add addons matching the installed core version
+libman extension-remove git     # Remove an addon from future loads
 libman status             # Installed versions, paths and release repository; offline
 libman path               # Only the directory containing lib.sh; offline
 libman update             # Latest library release from the saved repository
@@ -56,7 +81,7 @@ libman uninstall         # Confirm removal interactively; --yes for automation
 ```
 
 Until you add its directory to `PATH`, invoke the printed absolute command path instead.
-The installed manager remembers its installation paths, repository, and tools selection. Re-running the installer
+The installed manager remembers its installation paths, repository, tools selection, and addon selection. Re-running the installer
 against the same installation is also supported; it is no longer necessary for routine updates.
 Changing command or tools directories requires uninstalling and reinstalling.
 `update` and `self-update` use `latest` unless a version override is supplied.
@@ -122,5 +147,18 @@ chmod +x libtree
 ./libtree --help
 ```
 
-Use `libtree` when the library source should be committed in the consuming repository, with an upstream-tracking
-branch for later subtree updates. It does not manage machine installations or shell configuration.
+Use `libtree` when the library source should be committed in the consuming repository, with later subtree updates. It does not manage machine installations or shell configuration.
+
+The default destination is now `scripts/libsh`: core is in `scripts/libsh/lib`, with selected addons in
+`scripts/libsh/extensions`. For example:
+
+```shell
+libtree pull vendor/libsh --extensions secret,git --ref main
+libtree update vendor/libsh
+```
+
+Use a published tag containing the extension layout instead of `main` when pinning a release.
+Updates remember the repository, ref, and addon selection in `.libsh-vendor`. Use `--extensions none` to
+remove addons on update. The consumer working tree must be clean. Git fetches upstream history, while only
+selected sources enter the subtree; use the installer when selective release downloads are required.
+The old flat subtree layout must be replaced explicitly before adopting this layout.

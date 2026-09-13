@@ -1,8 +1,28 @@
 # shellcheck shell=bash
 #
-# Bash general utility functions.
+# Bash helper functions for working with arrays.
 
-# shellcheck disable=SC1090,SC1091 # the sourced paths only exist at runtime
+# Determine if an array is empty
+function lib::data::array_is_empty() {
+  local array=("${@:1}")
+
+  if [ ${#array[@]} -eq 0 ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Determine if an array contains a certain string
+function lib::data::array_contains() {
+  local needle=${1} array=("${@:2}")
+
+  if [[ " ${array[*]} " =~ [[:space:]]${needle}[[:space:]] ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
 
 #######################################
 # Validate an ordinary scalar reference for the container primitives.
@@ -15,7 +35,7 @@
 # Returns:
 #   0 if usable, 2 otherwise.
 #######################################
-__libsh_utils_scalar_reference() {
+function __libsh_data_scalar_reference() {
   local LC_ALL=C
   local __libsh_ref_decl __libsh_ref_flags
   if [[ ! ${1:-} =~ ^[a-zA-Z_][a-zA-Z_0-9]*$ ]]; then
@@ -44,48 +64,4 @@ __libsh_utils_scalar_reference() {
     fi
   fi
   return 0
-}
-#######################################
-# Reload the rc files for Bash (and/or Zsh).
-# Globals:
-#   HOME (read)
-# Arguments:
-#   None
-# Returns:
-#   0, whether or not either file exists.
-#######################################
-function lib::utils::rc() {
-  if [ -e "${HOME}/.bashrc" ]; then source "${HOME}/.bashrc"; fi
-  if [ -e "${HOME}/.zshrc" ]; then source "${HOME}/.zshrc"; fi
-
-  return 0
-}
-
-#######################################
-# Activate the Python venv in the current directory, creating it first if
-# it does not exist yet.
-# Globals:
-#   None
-# Arguments:
-#   None
-# Outputs:
-#   Whatever 'python -m venv' writes, when it has to create the venv.
-# Returns:
-#   0 on success, otherwise the return value of 'python -m venv'.
-#######################################
-function lib::utils::venv() {
-  local venv activate python
-
-  venv="$(pwd)/.venv"
-  activate="$venv/bin/activate"
-
-  if [[ ! -e $activate ]]; then
-    # Ubuntu and Debian ship 'python3' with no unversioned 'python'.
-    python=python3
-    command -v python3 >/dev/null 2>&1 || python=python
-
-    "$python" -m venv "$venv" || return $?
-  fi
-
-  source "$activate"
 }

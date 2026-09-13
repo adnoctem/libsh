@@ -18,7 +18,7 @@
 # Returns:
 #   The return value of 'apt-get'.
 #######################################
-function lib::apt::simulate() {
+function ext::apt::simulate() {
   local action=${1:-upgrade}
 
   apt-get -s "$action" 2>/dev/null
@@ -35,7 +35,7 @@ function lib::apt::simulate() {
 # Outputs:
 #   One package name per line.
 #######################################
-function lib::apt::pending_packages() {
+function ext::apt::pending_packages() {
   awk '/^Inst /{print $2}'
 }
 
@@ -55,7 +55,7 @@ function lib::apt::pending_packages() {
 # Outputs:
 #   One package name per line.
 #######################################
-function lib::apt::security_packages() {
+function ext::apt::security_packages() {
   awk '$0 ~ /^Inst / && $0 ~ /-security[ ,)]/ {print $2}'
 }
 
@@ -70,7 +70,7 @@ function lib::apt::security_packages() {
 # Outputs:
 #   The "N upgraded, N newly installed, ..." line, if there is one.
 #######################################
-function lib::apt::summary_line() {
+function ext::apt::summary_line() {
   awk '/^[0-9]+ upgraded/{print; exit}'
 }
 
@@ -85,7 +85,7 @@ function lib::apt::summary_line() {
 # Returns:
 #   0 on success, 1 when no timestamp was found.
 #######################################
-function lib::apt::lists_age_days() {
+function ext::apt::lists_age_days() {
   local candidate stamp=""
 
   # apt touches the stamp file only on a successful update; the lists
@@ -119,7 +119,7 @@ function lib::apt::lists_age_days() {
 # Returns:
 #   0 if the package is installed, 1 otherwise.
 #######################################
-function lib::apt::is_installed() {
+function ext::apt::is_installed() {
   local package=${1}
 
   [[ "$(dpkg-query -W -f='${db:Status-Status}' -- "$package" 2>/dev/null)" == "installed" ]]
@@ -136,6 +136,6 @@ function lib::apt::is_installed() {
 # Returns:
 #   0 if a reboot is required, 1 otherwise.
 #######################################
-function lib::apt::reboot_required() {
+function ext::apt::reboot_required() {
   [[ -f /var/run/reboot-required ]]
 }

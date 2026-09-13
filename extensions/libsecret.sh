@@ -18,7 +18,7 @@
 # Returns:
 #   0 on success, 1 if the file is missing, unreadable or empty.
 #######################################
-function lib::secret::from_file() {
+function ext::secret::from_file() {
   local path=${1} mode secret
 
   if [[ ! -f $path ]]; then
@@ -60,12 +60,12 @@ function lib::secret::from_file() {
 # Returns:
 #   0 success, 1 I/O/dependency failure, 2 invalid input.
 #######################################
-lib::secret::read_file() {
+function ext::secret::read_file() {
   [[ $# -ge 2 ]] || {
     lib::log::red 'read_file requires OUT and PATH.'
     return 2
   }
-  __libsh_utils_scalar_reference "$1" write || return 2
+  __libsh_data_scalar_reference "$1" write || return 2
   local __libsh_read_out=$1 __libsh_read_path=$2
   local __libsh_read_mode=text __libsh_read_empty=0 __libsh_read_seen=0
   shift 2
@@ -93,7 +93,7 @@ lib::secret::read_file() {
       ;;
     esac
   done
-  __libsh_secret_read_text "$__libsh_read_out" "$__libsh_read_path" "$__libsh_read_mode" "$__libsh_read_empty"
+  __libsh_ext_secret_read_text "$__libsh_read_out" "$__libsh_read_path" "$__libsh_read_mode" "$__libsh_read_empty"
 }
 
 #######################################
@@ -107,7 +107,7 @@ lib::secret::read_file() {
 # Returns:
 #   0 success, 1 I/O/dependency failure, 2 invalid text/empty selection.
 #######################################
-__libsh_secret_read_text() {
+function __libsh_ext_secret_read_text() {
   local __libsh_bytes_dump __libsh_bytes_line __libsh_bytes_byte
   local __libsh_bytes_escape='' __libsh_bytes_done=0
   local -a __libsh_bytes_row=()
@@ -160,12 +160,12 @@ __libsh_secret_read_text() {
 # Returns:
 #   0 success (including absence), 1 I/O/dependency failure, 2 invalid input.
 #######################################
-lib::secret::resolve() {
+function ext::secret::resolve() {
   [[ $# -ge 1 ]] || {
     lib::log::red 'resolve requires an output variable.'
     return 2
   }
-  __libsh_utils_scalar_reference "$1" write || return 2
+  __libsh_data_scalar_reference "$1" write || return 2
   local __libsh_res_out=$1 __libsh_res_value='' __libsh_res_file=''
   local __libsh_res_mode=text __libsh_res_empty=0 __libsh_res_precedence=presence
   local __libsh_res_seen=' ' __libsh_res_selected __libsh_res_has=0
@@ -200,8 +200,8 @@ lib::secret::resolve() {
       ;;
     esac
   done
-  __libsh_utils_scalar_reference "$__libsh_res_value" read || return 2
-  __libsh_utils_scalar_reference "$__libsh_res_file" read || return 2
+  __libsh_data_scalar_reference "$__libsh_res_value" read || return 2
+  __libsh_data_scalar_reference "$__libsh_res_file" read || return 2
   if [[ $__libsh_res_out == "$__libsh_res_file" ||
     ($__libsh_res_mode != text && $__libsh_res_mode != first-line) ||
     ($__libsh_res_precedence != presence && $__libsh_res_precedence != nonempty) ]]; then
@@ -220,7 +220,7 @@ lib::secret::resolve() {
       lib::log::red 'Selected secret file path is empty.'
       return 2
     }
-    __libsh_secret_read_text __libsh_res_selected "${!__libsh_res_file}" "$__libsh_res_mode" "$__libsh_res_empty" || return $?
+    __libsh_ext_secret_read_text __libsh_res_selected "${!__libsh_res_file}" "$__libsh_res_mode" "$__libsh_res_empty" || return $?
     __libsh_res_has=1
   fi
   if [[ $__libsh_res_has == 0 ]]; then

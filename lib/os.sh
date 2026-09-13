@@ -6,7 +6,7 @@
 # ref: https://specifications.freedesktop.org/basedir-spec/latest/
 
 # Ensure a base-directory for a given path exists
-lib::paths::ensure_existence() {
+function lib::os::ensure_existence() {
   local path=${1}
 
   if [[ ! -e ${path} ]]; then
@@ -15,7 +15,7 @@ lib::paths::ensure_existence() {
 }
 
 # Ensure a directory itself exists, rather than its parent
-lib::paths::ensure_directory() {
+function lib::os::ensure_directory() {
   local path=${1}
 
   if [[ ! -d ${path} ]]; then
@@ -36,7 +36,7 @@ lib::paths::ensure_directory() {
 # Outputs:
 #   The resolved path to stdout.
 #######################################
-lib::paths::config_home() {
+function lib::os::config_home() {
   local app=${1:-} base
 
   if [[ -n ${XDG_CONFIG_HOME:-} ]]; then
@@ -64,7 +64,7 @@ lib::paths::config_home() {
 # Outputs:
 #   The resolved path to stdout.
 #######################################
-lib::paths::data_home() {
+function lib::os::data_home() {
   local app=${1:-} base
 
   if [[ -n ${XDG_DATA_HOME:-} ]]; then
@@ -93,7 +93,7 @@ lib::paths::data_home() {
 # Outputs:
 #   The resolved path to stdout.
 #######################################
-lib::paths::cache_home() {
+function lib::os::cache_home() {
   local app=${1:-} base
 
   if [[ -n ${XDG_CACHE_HOME:-} ]]; then
@@ -121,7 +121,7 @@ lib::paths::cache_home() {
 # Outputs:
 #   The resolved path to stdout.
 #######################################
-lib::paths::state_home() {
+function lib::os::state_home() {
   local app=${1:-} base
 
   if [[ -n ${XDG_STATE_HOME:-} ]]; then
@@ -136,4 +136,59 @@ lib::paths::state_home() {
   fi
 
   printf '%s' "$base"
+}
+
+# Work with packages and executables.
+
+function lib::os::is_executable() {
+  local package=${1}
+
+  if [[ -z $package ]]; then
+    return 1
+  fi
+
+  command_package=$(command -v "$package")
+  if [[ -z $command_package ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
+# Run commands with elevated privileges.
+
+# Check if the current user is root
+function lib::os::root_check() {
+  if [[ $EUID -ne 0 ]]; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+# Prefix commands with sudo or not
+function lib::os::root_exec() {
+  if [[ $EUID -ne 0 ]]; then
+    sudo "$@"
+  else
+    "$@"
+  fi
+}
+
+#######################################
+# Reload the rc files for Bash (and/or Zsh).
+# Globals:
+#   HOME (read)
+# Arguments:
+#   None
+# Returns:
+#   0, whether or not either file exists.
+#######################################
+function lib::os::rc() {
+  # shellcheck disable=SC1090,SC1091 # caller-owned rc file
+  if [ -e "${HOME}/.bashrc" ]; then source "${HOME}/.bashrc"; fi
+  # shellcheck disable=SC1090,SC1091 # caller-owned rc file
+  if [ -e "${HOME}/.zshrc" ]; then source "${HOME}/.zshrc"; fi
+
+  return 0
 }

@@ -1,313 +1,137 @@
 #!/usr/bin/env bash
-#
-# Install `libsh`s library sources into a subdirectory within your repository with Git Subtree.
-# This script largely relies on community provided sources (GitHub Gist) for the actual Git
-# logic.
-#
-# This is a self-contained Bash script, shipped and used as an executable. Install with the following command:
-#
-# curl -LJO https://raw.githubusercontent.com/adnoctem/libsh/main/bin/libtree
-#
-# ref: https://gist.github.com/tswaters/542ba147a07904b1f3f5
-
-# -------------------------
-#   GLOBAL defaults
-# -------------------------
-REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
-DESTINATION="scripts/lib"
-
-UPSTREAM_REMOTE_NAME="libsh-upstream"
-UPSTREAM_REMOTE_BRANCH="main"
-UPSTREAM_BRANCH="upstream/libsh"
-MERGING_BRANCH="merging/libsh"
-DEFAULT_BRANCH="main"
-
-# -------------------------
-#   Utility functions
-# -------------------------
-
-# Write un-colored output to stdout
-log() {
-  if [[ $# -eq 1 ]]; then
-    echo -e "$1" &>/dev/null
-  else
-    echo -e "\033[1;${1}${2}\033[0m"
-  fi
-}
-
-# Write red output to stdout
-lib::log::red() {
-  log "31m" "${1}"
-}
-
-# Write yellow output to stdout
-lib::log::yellow() {
-  log "33m" "${1}"
-}
-
-# Write green output to stdout
-lib::log::green() {
-  log "32m" "${1}"
-}
-
-# Check if a package is installed
-lib::package::is_executable() {
-  local package=${1}
-
-  if [[ -z $package ]]; then
-    return 1
-  fi
-
-  command_package=$(command -v "$package")
-
-  if [[ -z $command_package ]]; then
-    return 1
-  fi
-
-  return 0
-}
-
-# Check if a remote exists
-lib::git::remote_exists() {
-  remote=${1}
-
-  git remote show | grep -E "$remote"
-  rc=$?
-
-  return $rc
-}
-
-# Check if a branch exists
-lib::git::branch_exists() {
-  branch=${1}
-
-  git branch -l | grep -E "$branch"
-  rc=$?
-
-  return $rc
-}
-
-# Ensure a base-directory for a given path exists
-lib::paths::ensure_existence() {
-  local path=${1}
-
-  if [[ ! -e ${path} ]]; then
-    mkdir -p "$(dirname "${path}")"
-  fi
-}
-
-# Check if the required dependencies for the scripts are installed.
-function libtree::checks() {
-  if [[ $(pwd) != "$REPOSITORY_ROOT" ]]; then
-    lib::log::red "libtree must be run from the root of your repository! Exiting.."
-    exit 1
-  fi
-
-  lib::package::is_executable git
-  rc=$?
-
-  if [ $rc -ne 0 ]; then
-    lib::log::red "Could not find package \"git\" in system PATH. Please install \"git\" to use 'libtree'!"
-    exit 1
-  fi
-}
+# Vendor core and explicitly selected addons as a Git subtree. Standalone Bash.
+set -euo pipefail
 
 #######################################
-# Print the usage output for the script.
-# Globals:
-#   None
+# Import a filtered upstream snapshot without switching consumer branches.
+# Globals: None
 # Arguments:
-#   None
-# Outputs:
-#   Writes usage to stdout
+#   pull|update [DESTINATION] [--repo URL] [--ref REF] [--extensions LIST]
+# Outputs: Git progress and errors.
+# Returns: Nonzero for invalid arguments or failed Git operations.
 #######################################
-function libtree::usage() {
-  local script_name
-
-  script_name=$(basename "${0}")
-
-  echo "$script_name"
-  echo
-  echo "Pull libsh's library sources into your repository with Git Subtree."
-  echo "By default the sources are pulled into scripts/lib in your working directory."
-  echo
-  echo "Usage: ./scripts/$script_name <DESTINATION>"
-  echo
-  echo "help    - Print this usage information"
-  echo "pull    - Pull the upstream libsh sources"
-  echo "update  - Update the upstream libsh sources"
-  echo "clean   - Delete the upstream and merging branches/remotes."
-  echo
-  echo "Examples:"
-  echo "  ./scripts/$script_name pull (with configured or default Globals)"
-  echo "  ./scripts/$script_name pull src/lib"
-  echo "  ./scripts/$script_name update (with configured or default Globals)"
-  echo "  ./scripts/$script_name update src/lib"
-  echo "  ./scripts/$script_name clean"
-}
-
-#######################################
-# Pull the upstream sources.
-# Globals:
-#   DESTINATION
-#		UPSTREAM_BRANCH
-#		UPSTREAM_REMOTE_NAME
-#		UPSTREAM_REMOTE_BRANCH
-#		MERGING_BRANCH
-#		DEFAULT_BRANCH
-# Arguments:
-#   A destination file path to pull the
-#   source files to.
-# Returns:
-#   The parent return value of the latest
-#   'git' operation.
-#######################################
-function libtree::pull() {
-  local destination_path
-
-  destination_path=${1:-"$DESTINATION"}
-
-  # add libsh remote, create a new tracking branch
-  lib::git::remote_exists "$UPSTREAM_REMOTE_NAME"
-  rrc=$?
-
-  if [[ $rrc -eq 1 ]]; then
-    git remote add -f "$UPSTREAM_REMOTE_NAME" https://github.com/adnoctem/libsh.git
-  else
-    lib::log::yellow "Your repository already has the remote $UPSTREAM_REMOTE_NAME. Skipping re-creation."
-  fi
-
-  lib::git::branch_exists "$UPSTREAM_BRANCH"
-  brc=$?
-
-  if [[ $brc -eq 1 ]]; then
-    git checkout -b "$UPSTREAM_BRANCH" "$UPSTREAM_REMOTE_NAME/$UPSTREAM_REMOTE_BRANCH"
-  else
-    lib::log::yellow "Your repository already has the branch $UPSTREAM_BRANCH. Skipping re-creation."
-  fi
-
-  # split off subdir of tracking branch into separate branch
-  git subtree split -q --squash --prefix=lib --annotate="[libsh] " --rejoin -b "$MERGING_BRANCH"
-
-  # add separate branch as subdirectory on main.
-  git checkout "$DEFAULT_BRANCH"
-  git subtree add --prefix="$destination_path" --squash "$MERGING_BRANCH"
-}
-
-#######################################
-# Update the upstream sources.
-# Globals:
-#   DESTINATION
-#		UPSTREAM_BRANCH
-#		UPSTREAM_REMOTE_NAME
-#		UPSTREAM_REMOTE_BRANCH
-#		MERGING_BRANCH
-#		DEFAULT_BRANCH
-# Arguments:
-#   An (existing) destination file path
-#   to update.
-# Returns:
-#   The parent return value of the latest
-#   'git' operation.
-#######################################
-function libtree::update() {
-  local destination_path
-
-  destination_path=${1:-"$DESTINATION"}
-  if [ ! -d "$destination_path" ]; then
-    lib::log::red "Destination path \"$destination_path\" does not exist! Cannot update non-existent sources."
-    lib::log::yellow 'Be sure to run "libtree pull" before running "... update"!'
-    exit 1
-  fi
-
-  # switch back to tracking branch, fetch & rebase.
-  git checkout $UPSTREAM_BRANCH
-  git pull "$UPSTREAM_REMOTE_NAME/$UPSTREAM_REMOTE_BRANCH"
-
-  # update the separate branch with changes from upstream
-  git subtree split -q --prefix=lib --annotate="[libsh] " --rejoin -b "$MERGING_BRANCH"
-
-  # switch back to master and use subtree merge to update the subdirectory
-  git checkout "$DEFAULT_BRANCH"
-  git subtree merge -q --prefix=lib --squash "$MERGING_BRANCH"
-}
-
-#######################################
-# Remove the upstream and merging branches
-# as well as the upstream remote.
-# Globals:
-#   DESTINATION
-# Arguments:
-#   None
-# Returns:
-#   The parent return value of the latest
-#   'git' operation.
-#######################################
-function libtree::clean() {
-  # delete the libsh-upstream remote
-  lib::git::remote_exists "$UPSTREAM_REMOTE_NAME"
-  rrc=$?
-
-  if [[ $rrc -eq 1 ]]; then
-    lib::log::yellow "Your repository does not have the remote $UPSTREAM_REMOTE_NAME. Skipping deletion of non-existent remote."
-  else
-    git remote rm "$UPSTREAM_REMOTE_NAME"
-  fi
-
-  # delete the upstream/libsh branch
-  lib::git::branch_exists "$UPSTREAM_BRANCH"
-  burc=$?
-
-  if [[ $burc -eq 1 ]]; then
-    lib::log::yellow "Your repository does not have the branch $UPSTREAM_BRANCH. Skipping deletion of non-existent branch."
-  else
-    git branch -D "$UPSTREAM_BRANCH"
-  fi
-
-  # delete the merging/libsh branch
-  lib::git::branch_exists "$MERGING_BRANCH"
-  bmrc=$?
-
-  if [[ $bmrc -eq 1 ]]; then
-    lib::log::yellow "Your repository does not have the branch $MERGING_BRANCH. Skipping deletion of non-existent branch."
-  else
-    git branch -D "$MERGING_BRANCH"
-  fi
-}
-
-# --------------------------------
-#   MAIN
-# --------------------------------
-function main() {
-  local cmd=${1}
-
-  libtree::checks
-
-  case "${cmd}" in
-  help)
-    libtree::usage
+libtree::main() (
+  local action=${1:-help} destination=scripts/libsh repo='' ref='' extensions=''
+  local selected=0 work='' root metadata key value commit tree snapshot line name
+  local mode type oid path
+  [[ $# == 0 ]] || shift
+  case $action in
+  help | --help | -h)
+    cat <<'HELP'
+Usage: libtree pull|update [DESTINATION] [OPTIONS]
+Vendor core under DESTINATION/lib and optional addons under DESTINATION/extensions.
+Default destination: scripts/libsh. Source DESTINATION/lib/lib.sh to load core.
+  --repo URL         Upstream Git repository (default: GitHub adnoctem/libsh)
+  --ref REF          Branch, tag or commit (default: main)
+  --extensions LIST  Comma-separated addon names, or none (default: core only)
+Update remembers the repository, ref and addon selection from the vendored metadata.
+Git fetches upstream history; only selected sources enter the consumer subtree.
+Use bin/install for selective release downloads instead of Git vendoring.
+A clean consumer working tree is required. No tracking branches or remotes are created.
+HELP
+    return 0
     ;;
-  pull)
-    libtree::pull "${@:2}"
-    return $?
-    ;;
-  update)
-    libtree::update "${@:2}"
-    return $?
-    ;;
-  clean)
-    libtree::clean
-    return $?
-    ;;
+  pull | update) ;;
   *)
-    lib::log::yellow "Unknown command: ${cmd}. See 'help' command for usage information:"
-    libtree::usage
-    return $?
+    printf 'libtree: expected pull, update or help.\n' >&2
+    return 2
     ;;
   esac
-}
+  if [[ $# -gt 0 && $1 != -* ]]; then
+    destination=$1
+    shift
+  fi
+  while [[ $# -gt 0 ]]; do
+    [[ $# -ge 2 && -n $2 ]] || {
+      printf 'libtree: missing option value.\n' >&2
+      return 2
+    }
+    case $1 in
+    --repo) repo=$2 ;;
+    --ref) ref=$2 ;;
+    --extensions)
+      extensions=$2
+      selected=1
+      ;;
+    *)
+      printf 'libtree: unknown option: %s\n' "$1" >&2
+      return 2
+      ;;
+    esac
+    shift 2
+  done
+  [[ $destination != /* && $destination != -* && $destination != *[[:cntrl:]]* &&
+    ! $destination =~ (^|/)\.\.?(/|$) && $destination != */ ]] || {
+    printf 'libtree: use a relative destination without dot components.\n' >&2
+    return 2
+  }
+  root=$(git rev-parse --show-toplevel) || return 1
+  cd "$root" || return 1
+  [[ -z $(git status --porcelain) ]] || {
+    printf 'libtree: commit or stash consumer changes first.\n' >&2
+    return 1
+  }
+  metadata=$destination/.libsh-vendor
+  if [[ $action == update ]]; then
+    [[ -f $metadata ]] || {
+      printf 'libtree: no managed subtree at %s.\n' "$destination" >&2
+      return 1
+    }
+    while IFS='=' read -r key value; do
+      case $key in
+      repo) repo=${repo:-$value} ;;
+      ref) ref=${ref:-$value} ;;
+      extensions) [[ $selected == 1 ]] || extensions=$value ;;
+      esac
+    done <"$metadata"
+  else
+    [[ ! -e $destination && ! -L $destination ]] || {
+      printf 'libtree: destination already exists.\n' >&2
+      return 1
+    }
+  fi
+  repo=${repo:-https://github.com/adnoctem/libsh.git}
+  ref=${ref:-main}
+  [[ $repo != -* && $ref != -* && $repo != *[[:cntrl:]]* && $ref != *[[:cntrl:]]* ]] || return 2
+  [[ $extensions != none ]] || extensions=''
+  [[ -z $extensions || $extensions =~ ^[a-z][a-z0-9_]*(,[a-z][a-z0-9_]*)*$ ]] || {
+    printf 'libtree: use comma-separated addon names, or none.\n' >&2
+    return 2
+  }
+  work=$(mktemp -d) || return 1
+  trap 'rm -rf -- "$work"' EXIT
+  git init -q "$work/upstream" || return 1
+  git -C "$work/upstream" fetch -q --depth=1 -- "$repo" "$ref" || return 1
+  commit=$(git -C "$work/upstream" rev-parse FETCH_HEAD) || return 1
+  git -C "$work/upstream" cat-file -e "$commit:lib/lib.sh" || return 1
+  local -a paths=(lib)
+  for name in ${extensions//,/ }; do
+    git -C "$work/upstream" cat-file -e "$commit:extensions/lib$name.sh" || {
+      printf 'libtree: unavailable addon: %s\n' "$name" >&2
+      return 1
+    }
+    paths+=("extensions/lib$name.sh")
+  done
+  git -C "$work/upstream" ls-tree -r "$commit" -- "${paths[@]}" >"$work/entries" || return 1
+  git -C "$work/upstream" read-tree --empty || return 1
+  while IFS= read -r line; do
+    read -r mode type oid path <<<"$line"
+    [[ $type == blob && ($mode == 100644 || $mode == 100755) &&
+      $path =~ ^(lib/[a-zA-Z0-9_./-]+|extensions/lib[a-z][a-z0-9_]*\.sh)$ ]] || {
+      printf 'libtree: unsupported source entry.\n' >&2
+      return 1
+    }
+    git -C "$work/upstream" update-index --add --cacheinfo "$mode,$oid,$path" || return 1
+  done <"$work/entries"
+  printf 'repo=%s\nref=%s\nextensions=%s\ncommit=%s\n' "$repo" "$ref" "$extensions" "$commit" >"$work/metadata"
+  oid=$(git -C "$work/upstream" hash-object -w "$work/metadata") || return 1
+  git -C "$work/upstream" update-index --add --cacheinfo "100644,$oid,.libsh-vendor" || return 1
+  tree=$(git -C "$work/upstream" write-tree) || return 1
+  snapshot=$(git -C "$work/upstream" -c user.name=libtree -c user.email=libtree@localhost commit-tree "$tree" -m "Vendor libsh $commit") || return 1
+  case $action in
+  pull) git subtree add --prefix="$destination" --squash "$work/upstream" "$snapshot" ;;
+  update) git subtree pull --prefix="$destination" --squash "$work/upstream" "$snapshot" ;;
+  esac
+)
 
-# ------------
-# 'main' call
-# ------------
-main "$@"
+libtree::main ${1+"$@"}

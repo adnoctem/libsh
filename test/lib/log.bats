@@ -6,19 +6,19 @@ setup() {
 	load "$REPO_ROOT/test/bats/plugins/bats-support/load"
 	load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
 
-	source "$REPO_ROOT/lib/log.sh"
+	source "$REPO_ROOT/lib/lib.sh"
 }
 
-# lib::log::write
-@test "lib::log::write wraps the message in the given color" {
-	run lib::log::write "31m" "boom"
+# lib::log::print
+@test "lib::log::print wraps the message in the given color" {
+	run lib::log::print "31m" "boom"
 
 	assert_output "$(printf '\033[1;31mboom\033[0m')"
 }
 
 # The message is data: a backslash in a path, a pattern or a password must
 # survive verbatim. This is why the module uses printf and not 'echo -e'.
-@test "lib::log::write does not interpret escapes in the message" {
+@test "lib::log::print does not interpret escapes in the message" {
 	run lib::log::plain 'C:\bin\new and 100% done'
 
 	assert_output 'C:\bin\new and 100% done'

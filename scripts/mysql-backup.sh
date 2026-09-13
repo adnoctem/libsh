@@ -14,29 +14,19 @@ if [[ ! -r $LIB_DIR/lib.sh ]]; then
   exit 1
 fi
 LIB_DIR=$(cd -P -- "$LIB_DIR" && pwd)
-
-# shellcheck source=lib/log.sh
-. "$LIB_DIR"/log.sh
-
-# shellcheck source=lib/opts.sh
-. "$LIB_DIR"/opts.sh
-
-# shellcheck source=lib/package.sh
-. "$LIB_DIR"/package.sh
-
-# shellcheck source=lib/paths.sh
-. "$LIB_DIR"/paths.sh
-
-# shellcheck source=lib/secret.sh
-. "$LIB_DIR"/secret.sh
-
-# shellcheck source=lib/history.sh
-. "$LIB_DIR"/history.sh
+# shellcheck source=lib/lib.sh
+. "$LIB_DIR/lib.sh"
+if ! declare -F lib::load >/dev/null || ! declare -F lib::load_extensions >/dev/null; then
+  printf 'Incompatible libsh at %s: this script requires the core/extension loader. Update the installation, or set LIBSH_DIR to this checkout\047s lib directory.\n' "$LIB_DIR" >&2
+  exit 1
+fi
+lib::load_extensions secret shell
 
 # -------------------------
 #   Flag spec
 # -------------------------
 
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 OPTS=(
   "-u,--username:username:1:required"
   ",--password:password:1:optional"
@@ -52,6 +42,7 @@ OPTS=(
 )
 
 # shellcheck disable=SC2016 # '$HOME' in output_dir's help text is a literal placeholder, not meant to expand
+# shellcheck disable=SC2034 # read by the dynamically loaded option parser
 declare -A OPTS_HELP=(
   [username]="Database user to connect as"
   [password]="Database password. Prefer --password-file or the MYSQL_PWD env var -- passing it here is visible to other local users via 'ps'."
@@ -84,7 +75,7 @@ function backup_mysql::prerequisites() {
   local prerequisites=('mysql' 'mysqldump' 'pv' 'numfmt')
 
   for prerequisite in "${prerequisites[@]}"; do
-    if ! lib::package::is_executable "${prerequisite}"; then
+    if ! lib::os::is_executable "${prerequisite}"; then
       lib::log::red "Could not find package '${prerequisite}' in system PATH. Please install '${prerequisite}' to proceed!"
       return 1
     fi
@@ -169,7 +160,7 @@ function backup_mysql::exec() {
 # database named by --databases.
 # Globals:
 #   OPTS, OPTS_HELP (read)
-#   OPTS_VALUES (written by lib::opts::parse)
+#   OPTS_VALUES (written by lib::opt::parse)
 #   MYSQL_PWD (read as a fallback, exported for mysql/mysqldump)
 # Arguments:
 #   The script's original "$@"
@@ -189,7 +180,7 @@ function main() {
     fi
   done
 
-  lib::opts::parse "$@" || return 1
+  lib::opt::parse "$@" || return 1
 
   password="${OPTS_VALUES[password]:-}"
   password_file="${OPTS_VALUES[password_file]:-}"
@@ -201,7 +192,7 @@ function main() {
   fi
 
   if [[ -n $password_file ]]; then
-    password=$(lib::secret::from_file "$password_file") || return 1
+    password=$(ext::secret::from_file "$password_file") || return 1
   fi
 
   export MYSQL_PWD="${password:-${MYSQL_PWD:-}}"
@@ -215,7 +206,7 @@ function main() {
   # Registered as a trap rather than a closing line: the credentials were
   # typed whether or not the dump below succeeds.
   if [[ ${OPTS_VALUES[scrub_history]:-} == "1" ]]; then
-    trap 'lib::history::scrub "${MYSQL_PWD:-}" || true' EXIT
+    trap 'ext::shell::history_scrub "${MYSQL_PWD:-}" || true' EXIT
   fi
 
   host="${OPTS_VALUES[host]}"
@@ -238,10 +229,10 @@ function main() {
     # database dump into the same file, silently overwriting the last one.
     file="$destination/mysqldump_${db_name}-${curdate}.sql"
 
-    # 'lib::paths::ensure_existence' creates the *parent* of the path it's given,
+    # 'lib::os::ensure_existence' creates the *parent* of the path it's given,
     # so hand it the dump file to get the destination directory.
     if [[ $dry_run != "1" ]]; then
-      lib::paths::ensure_existence "$file"
+      lib::os::ensure_existence "$file"
     fi
 
     backup_mysql::exec "$host" "$port" "$user" "$db_name" "$file" "$dry_run"

@@ -340,9 +340,9 @@ review.
 - Resolve a nonempty `LIBSH_DIR` before falling back to checkout-local `../lib`; fail if the selected library is missing.
   Resolve that directory physically once before sourcing modules, so updates cannot mix releases.
   See [the consumer example](../bin/README.md#consume-the-library-in-scripts). Do not invoke `libman` at runtime.
-- Parse arguments through `lib::opts::parse` rather than positionally, and expose `--help` and `--check-prerequisites`
+- Parse arguments through `lib::opt::parse` rather than positionally, and expose `--help` and `--check-prerequisites`
 - Anything that changes state also offers `--dry-run`
-- Anything destructive is gated behind `lib::ui::confirm`, with `-y`/`--yes` to bypass it for unattended runs
+- Anything destructive is gated behind `ext::ui::confirm`, with `-y`/`--yes` to bypass it for unattended runs
 - Secrets are read from a file or an environment variable, never accepted as a plain command-line argument alone
 
 **Tooling under `tools/`**
@@ -350,21 +350,27 @@ review.
 - Repository-maintenance-only: scripts here only make sense run against a full `libsh` checkout (this repo's own
   release process), unlike `scripts/`'s user-facing operational scripts. They are never installed onto a target
   machine by [`bin/install`](../bin/install) unless explicitly requested with `INCLUDE_TOOLS=1`
-- Follow the same conventions as `scripts/` above (shebang, `set -euo pipefail`, `lib::opts::parse`, `--help`,
+- Follow the same conventions as `scripts/` above (shebang, `set -euo pipefail`, `lib::opt::parse`, `--help`,
   `--check-prerequisites`, `--dry-run` for anything that changes state)
 
-**Library modules under `lib/`**
+**Library modules under `lib/` and `extensions/`**
 
 - Begin with `# shellcheck shell=bash` on the first line
+- Define every public and private function with the `function` keyword: `function name() { ... }`.
+  Executable scripts under `scripts/`, `tools/`, and `bin/`, and test helpers, may omit the keyword.
 - Reserve `lib::<module>::<function>` for the public API, where `<module>` is the containing filename without `.sh`.
   Public functions can call as many private helpers as needed.
-- Name private helpers `__libsh_<module>_<function>`, for example `__libsh_networking_endpoint_host`.
+  Only `lib/lib.sh` uses the global `lib::<function>` scope: `lib::load` and `lib::load_extensions`.
+  This loader exception avoids `lib::lib` repetition; it does not exempt functions from the keyword requirement.
+  Extensions in `extensions/lib<name>.sh` use `ext::<name>::<function>` for their public APIs.
+- Name private helpers `__libsh_<module>_<function>`, for example `__libsh_net_endpoint_host`.
   Do not put private helpers in the public namespace as `lib::<module>::__<function>`.
   Function names after either prefix use lowercase letters, digits, and underscores, starting with a letter.
 - Private helpers are implementation details, not supported consumer APIs. Bash still loads them into the caller's
   shell; the naming convention distinguishes their role and keeps the public API enumerable by its `lib::` prefix.
   Reserve `__libsh_` for library internals, including private helper names and internal variables.
-- Ship a matching `test/lib/<module>.bats`
+- Extension private helpers use `__libsh_ext_<name>_<function>`.
+- Ship a matching `test/lib/<module>.bats` for core or `test/extensions/<name>.bats` for an extension
 - Write errors with `lib::log::red`, which goes to stderr; progress output goes to stdout
 
 ### Versioning
@@ -372,8 +378,13 @@ review.
 The project follows [SemVer](https://semver.org/) and versions are cut automatically by
 [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/)
 on `main` — there is no manual version bump to make. `fix:` commits bump PATCH, `feat:` commits bump MINOR, and a
-`BREAKING CHANGE:` footer (or a `!` after the type/scope) bumps MAJOR. Describe breaking changes and migration
+`BREAKING CHANGE:` footer (or a `!` after the type/scope) bumps MINOR under the current pre-1.0 policy. A version check blocks releases outside `0.x`; enabling `1.0.0` requires an explicit policy change. Describe breaking changes and migration
 instructions in that footer; semantic-release surfaces it in the generated release notes.
+
+Release configuration stays in JSON `.releaserc`. Its breaking-change rule selects a minor release.
+`verifyReleaseCmd` checks the proposed version before preparation; `release-prepare.sh` also rejects non-`0.x`
+versions before changing files. Run `make test-release` (BATS and Node.js) to check this policy.
+Graduating to `1.0.0` requires reviewing both the JSON rule and the version restriction explicitly.
 
 The `VERSION` variable in the [`Makefile`](../Makefile) (read by [`make version`](../Makefile)) reflects the most
 recently released version between releases. It is written back automatically as part of the release commit — do not

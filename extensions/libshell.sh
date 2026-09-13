@@ -10,7 +10,7 @@
 # way for a child process to edit its parent shell's in-memory history.
 #
 # What is reachable is the history *file* on disk, which is what
-# lib::history::scrub rewrites. Two limits follow from that:
+# ext::shell::history_scrub rewrites. Two limits follow from that:
 #
 #   - Lines the interactive shell has not flushed yet are not in the file
 #     when this runs, and get written afterwards anyway. bash and zsh both
@@ -35,7 +35,7 @@
 # Outputs:
 #   The history file path to stdout.
 #######################################
-function lib::history::file() {
+function ext::shell::history_file() {
   local file=${HISTFILE:-}
 
   if [[ -z $file ]]; then
@@ -56,7 +56,7 @@ function lib::history::file() {
 # secret can take unrelated commands with it -- the length warning below
 # exists for exactly that case.
 # Globals:
-#   HISTFILE, SHELL (read, via lib::history::file)
+#   HISTFILE, SHELL (read, via ext::shell::history_file)
 # Arguments:
 #   1 - The secret to scrub. An empty value is a no-op.
 # Outputs:
@@ -66,7 +66,7 @@ function lib::history::file() {
 #   0 on success or when there is nothing to do, 1 if the file exists but
 #   could not be rewritten.
 #######################################
-function lib::history::scrub() {
+function ext::shell::history_scrub() {
   local secret=${1:-} file tmp rc=0 before after
 
   if [[ -z $secret ]]; then
@@ -77,7 +77,7 @@ function lib::history::scrub() {
     lib::log::yellow "Secret is short (${#secret} chars); history lines that merely contain it will be removed too."
   fi
 
-  file=$(lib::history::file)
+  file=$(ext::shell::history_file)
 
   if [[ ! -f $file ]]; then
     lib::log::yellow "No shell history file at '$file'; nothing to scrub."

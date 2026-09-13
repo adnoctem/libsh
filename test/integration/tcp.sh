@@ -30,12 +30,12 @@ done
   cat "$test_tcp_dir/err" >&2
   exit 1
 }
-lib::networking::tcp_wait 127.0.0.1 "$test_tcp_port" --attempts 3 --timeout 1 --interval 1
+lib::net::tcp_wait 127.0.0.1 "$test_tcp_port" --attempts 3 --timeout 1 --interval 1
 # Kill/wait is bounded even if a platform keeps its listener open after -z.
 kill "$test_tcp_pid" 2>/dev/null || true
 wait "$test_tcp_pid" 2>/dev/null || true
 test_tcp_pid=''
-if lib::networking::tcp_wait 127.0.0.1 "$test_tcp_port" --attempts 2 --timeout 1 --interval 0; then
+if lib::net::tcp_wait 127.0.0.1 "$test_tcp_port" --attempts 2 --timeout 1 --interval 0; then
   printf 'Closed local endpoint unexpectedly accepted a connection.\n' >&2
   exit 1
 fi
