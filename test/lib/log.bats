@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
-  REPO_ROOT=$(git rev-parse --show-toplevel)
+  REPO_ROOT=${REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}
 
   load "$REPO_ROOT/test/bats/plugins/bats-support/load"
   load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
@@ -66,4 +66,89 @@ setup() {
   run lib::log::timed_green "working"
 
   assert_output --regexp '\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}(\+|-)[0-9]{2}:[0-9]{2}\]: working'
+}
+
+@test "file logging preserves message bytes and appends exactly one newline per call" {
+  local file="$BATS_TEST_TMPDIR/log file" value=$'100% C:\\bin\\new\n\n'
+
+  run lib::log::write "$file" "$value"
+  assert_success
+  assert_output ''
+  lib::log::write "$file" ''
+  lib::log::write "$file" --help
+
+  printf '%s\n\n%s\n' "$value" --help >"$BATS_TEST_TMPDIR/expected"
+  cmp "$file" "$BATS_TEST_TMPDIR/expected"
+}
+
+@test "file logging timestamps only when requested and fails before writing if date fails" {
+  local file="$BATS_TEST_TMPDIR/log"
+
+  # shellcheck disable=SC2329 # called by lib::log::write
+  date() {
+    [[ $* == '-u +%Y-%m-%dT%H:%M:%SZ' ]] || return 9
+    printf '2026-09-13T12:30:00Z\n'
+  }
+
+  lib::log::write "$file" entry --timestamp
+  assert_equal "$(cat "$file")" '[2026-09-13T12:30:00Z] entry'
+
+  # shellcheck disable=SC2329
+  date() { return 7; }
+
+  run lib::log::write "$file" rejected --timestamp
+  assert_failure 1
+  assert_equal "$(cat "$file")" '[2026-09-13T12:30:00Z] entry'
+  lib::log::write "$file" plain
+  assert_equal "$(tail -n 1 "$file")" plain
+}
+
+@test "file logging rejects invalid calls missing parents and nonregular destinations" {
+  run lib::log::write
+  assert_failure 2
+  run lib::log::write '' message
+  assert_failure 2
+  run lib::log::write "$BATS_TEST_TMPDIR/log" message --unknown
+  assert_failure 2
+  [[ ! -e $BATS_TEST_TMPDIR/log ]]
+
+  run lib::log::write "$BATS_TEST_TMPDIR/missing/log" message
+  assert_failure 1
+  run lib::log::write "$BATS_TEST_TMPDIR" message
+  assert_failure 1
+  mkfifo "$BATS_TEST_TMPDIR/fifo"
+  run lib::log::write "$BATS_TEST_TMPDIR/fifo" message
+  assert_failure 1
+  ln -s missing "$BATS_TEST_TMPDIR/broken"
+  run lib::log::write "$BATS_TEST_TMPDIR/broken" message
+  assert_failure 1
+}
+
+@test "file logging follows existing file symlinks and preserves strict caller state" {
+  : >"$BATS_TEST_TMPDIR/real"
+  ln -s real "$BATS_TEST_TMPDIR/link"
+
+  run bash -c '
+    set -euo pipefail
+    source "$1/lib/lib.sh"
+    trap ":" USR1
+    before=$(set +o); traps=$(trap -p); mask=$(umask); directory=$PWD
+    lib::log::write "$2/link" "entry"
+    [[ $(set +o) == "$before" && $(trap -p) == "$traps" ]]
+    [[ $(umask) == "$mask" && $PWD == "$directory" ]]
+  ' _ "$REPO_ROOT" "$BATS_TEST_TMPDIR"
+  assert_success
+  assert_equal "$(cat "$BATS_TEST_TMPDIR/real")" entry
+  [[ -L $BATS_TEST_TMPDIR/link ]]
+}
+
+@test "file logging propagates failed appends" {
+  if [[ $EUID == 0 ]]; then skip 'effective root access bypasses ordinary permissions'; fi
+  local file="$BATS_TEST_TMPDIR/readonly"
+  printf original >"$file"
+  chmod 400 "$file"
+
+  run lib::log::write "$file" rejected
+  assert_failure 1
+  assert_equal "$(cat "$file")" original
 }

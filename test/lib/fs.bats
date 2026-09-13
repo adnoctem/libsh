@@ -248,3 +248,223 @@ setup() {
   assert_failure 1
   assert_output --partial 'existing target'
 }
+
+@test "file replacement expands ERE captures and sed replacement syntax on every line" {
+  printf 'one=12 one=34\ntwo=56\n' >"$TEST_TMP/file"
+  # shellcheck disable=SC1003  # The final two backslashes are sed replacement data.
+  run lib::fs::file_replace_content "$TEST_TMP/file" '(one|two)=([0-9]+)' '\2:\1:[&]:\&:\\'
+  assert_success
+  assert_output ''
+  printf '12:one:[one=12]:&:\\ 34:one:[one=34]:&:\\\n56:two:[two=56]:&:\\\n' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+}
+
+@test "file replacement preserves terminal newlines CRLF and literal replacement newlines" {
+  local original
+  for original in 'word' $'word\n' $'word\n\n' $'word\r\n'; do
+    printf '%s' "$original" >"$TEST_TMP/file"
+    lib::fs::file_replace_content "$TEST_TMP/file" word $'new\nline\n'
+    printf '%s' "${original/word/$'new\nline\n'}" >"$TEST_TMP/expected"
+    cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+  done
+}
+
+@test "multiline replacement matches file boundaries and embedded newlines" {
+  printf 'begin\nfirst\nlast\nend\n' >"$TEST_TMP/file"
+  lib::fs::file_replace_content_multiline "$TEST_TMP/file" $'^begin\n(first.*last)\nend\n$' $'<\\1>\n'
+  printf '<first\nlast>\n' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  printf 'begin\nend' >"$TEST_TMP/file"
+  lib::fs::file_replace_content_multiline "$TEST_TMP/file" 'begin\nend$' 'done'
+  printf '%s' 'done' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  : >"$TEST_TMP/file"
+  lib::fs::file_replace_content_multiline "$TEST_TMP/file" '^$' text
+  printf text >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+}
+
+@test "line replacement cannot match across lines and no match leaves identity unchanged" {
+  printf 'first\nlast\n' >"$TEST_TMP/file"
+  cp -p "$TEST_TMP/file" "$TEST_TMP/expected"
+  local before
+  before=$(__libsh_fs_edit_identity "$TEST_TMP/file")
+  run lib::fs::file_replace_content "$TEST_TMP/file" 'first.*last' changed
+  assert_failure 1
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+  assert_equal "$(__libsh_fs_edit_identity "$TEST_TMP/file")" "$before"
+
+  run lib::fs::file_replace_content "$TEST_TMP/file" first first
+  assert_success
+  assert_equal "$(__libsh_fs_edit_identity "$TEST_TMP/file")" "$before"
+}
+
+@test "line removal preserves surviving terminators and can remove all lines" {
+  printf 'drop\nkeep\ndrop' >"$TEST_TMP/file"
+  lib::fs::file_remove_content "$TEST_TMP/file" '^drop$'
+  printf 'keep\n' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  printf 'drop\nkeep' >"$TEST_TMP/file"
+  lib::fs::file_remove_content "$TEST_TMP/file" drop
+  printf keep >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  lib::fs::file_remove_content "$TEST_TMP/file" keep
+  [[ ! -s $TEST_TMP/file ]]
+  run lib::fs::file_remove_content "$TEST_TMP/file" '.*'
+  assert_failure 1
+}
+
+@test "insertion uses the last matching line and literal text with necessary separators" {
+  printf 'mark\nkeep\nmark\nsuffix' >"$TEST_TMP/file"
+  lib::fs::file_append_content_after_last_match "$TEST_TMP/file" mark 'literal & \1'
+  printf 'mark\nkeep\nmark\nliteral & \\1\nsuffix' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  printf mark >"$TEST_TMP/file"
+  lib::fs::file_append_content_after_last_match "$TEST_TMP/file" mark $'one\ntwo\n'
+  printf 'mark\none\ntwo\n' >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  lib::fs::file_append_content_after_last_match "$TEST_TMP/file" two ''
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+  run lib::fs::file_append_content_after_last_match "$TEST_TMP/file" missing ''
+  assert_failure 1
+}
+
+@test "editing follows relative symlink chains and no-dereference refuses them" {
+  local file=$TEST_TMP/$'file\n\n' flag
+  printf old >"$file"
+  ln -s $'file\n\n' "$TEST_TMP/link"
+  ln -s link "$TEST_TMP/chain"
+  for flag in -n --no-dereference; do
+    run lib::fs::file_replace_content "$TEST_TMP/chain" old new "$flag"
+    assert_failure 1
+    assert_equal "$(cat "$file")" old
+  done
+
+  lib::fs::file_replace_content "$TEST_TMP/chain" old new
+  assert_equal "$(cat "$file")" new
+  [[ -L $TEST_TMP/link && -L $TEST_TMP/chain ]]
+  lib::fs::file_replace_content "$file" new newer -n
+  assert_equal "$(cat "$file")" newer
+}
+
+@test "editing refuses hard links broken links loops directories and special files" {
+  printf original >"$TEST_TMP/file"
+  ln "$TEST_TMP/file" "$TEST_TMP/hard"
+  ln -s missing "$TEST_TMP/broken"
+  ln -s loop "$TEST_TMP/loop"
+  mkfifo "$TEST_TMP/fifo"
+  local path
+  for path in file hard broken loop fifo absent .; do
+    run lib::fs::file_replace_content "$TEST_TMP/$path" original changed
+    assert_failure 1
+  done
+  assert_equal "$(cat "$TEST_TMP/file")" original
+  assert_equal "$(cat "$TEST_TMP/hard")" original
+}
+
+@test "editing preserves mode and ownership including a read-only target" {
+  printf old >"$TEST_TMP/file"
+  chmod 440 "$TEST_TMP/file"
+  local before after
+  before=$(__libsh_fs_edit_identity "$TEST_TMP/file")
+  lib::fs::file_replace_content "$TEST_TMP/file" old new
+  after=$(__libsh_fs_edit_identity "$TEST_TMP/file")
+  assert_equal "${after#* * * }" "${before#* * * }"
+  assert_equal "$(cat "$TEST_TMP/file")" new
+}
+
+@test "invalid editing arguments expressions and NUL data leave the original untouched" {
+  printf 'old\n' >"$TEST_TMP/file"
+  cp "$TEST_TMP/file" "$TEST_TMP/expected"
+  local pattern
+  for pattern in '[' "old\\" ''; do
+    run lib::fs::file_replace_content "$TEST_TMP/file" "$pattern" new
+    assert_failure 2
+    cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+  done
+  run lib::fs::file_replace_content "$TEST_TMP/file" old '\1'
+  assert_failure 2
+  run lib::fs::file_replace_content "$TEST_TMP/file" old '\n'
+  assert_failure 2
+  run lib::fs::file_replace_content "$TEST_TMP/file" old new --unknown
+  assert_failure 2
+  run lib::fs::file_replace_content "$TEST_TMP/file" old
+  assert_failure 2
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+
+  printf 'old\0data' >"$TEST_TMP/file"
+  cp "$TEST_TMP/file" "$TEST_TMP/expected"
+  run lib::fs::file_replace_content "$TEST_TMP/file" old new
+  assert_failure 2
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+}
+
+@test "replacement delimiters and shell-looking text cannot inject commands" {
+  printf 'old/path|name\n' >"$TEST_TMP/file"
+  # shellcheck disable=SC2016  # Exercise literal shell syntax as replacement data.
+  local replacement='$(touch forbidden); / | : @ % ~ , ; # ! = + _ &'
+  lib::fs::file_replace_content "$TEST_TMP/file" 'old/path\|name' "$replacement"
+  printf '%s\n' "${replacement%&}old/path|name" >"$TEST_TMP/expected"
+  cmp "$TEST_TMP/file" "$TEST_TMP/expected"
+  [[ ! -e forbidden ]]
+}
+
+@test "failed transformation and commit leave the file untouched and clean temporary files" {
+  printf old >"$TEST_TMP/file"
+  local command_name
+  for command_name in sed mv chmod; do
+    run bash -c '
+      source "$1/lib/lib.sh"
+      function sed() { if [[ $FAIL_COMMAND == sed ]]; then return 1; fi; command sed "$@"; }
+      function mv() { if [[ $FAIL_COMMAND == mv ]]; then return 1; fi; command mv "$@"; }
+      function chmod() { if [[ $FAIL_COMMAND == chmod ]]; then return 1; fi; command chmod "$@"; }
+      FAIL_COMMAND=$3
+      lib::fs::file_replace_content "$2/file" old new
+    ' _ "$REPO_ROOT" "$TEST_TMP" "$command_name"
+    assert_failure
+    assert_equal "$(cat "$TEST_TMP/file")" old
+    local leftovers=("$TEST_TMP"/.libsh-edit.*)
+    [[ ! -e ${leftovers[0]} ]]
+  done
+}
+
+@test "editing detects concurrent changes before committing staged bytes" {
+  printf old >"$TEST_TMP/file"
+  run bash -c '
+    source "$1/lib/lib.sh"
+    target=$2/file
+    function sed() {
+      command sed "$@" || return
+      printf concurrent >"$target"
+    }
+    lib::fs::file_replace_content "$target" old new
+  ' _ "$REPO_ROOT" "$TEST_TMP"
+  assert_failure 1
+  assert_equal "$(cat "$TEST_TMP/file")" concurrent
+}
+
+@test "editing preserves strict caller state and parser arrays" {
+  printf old >"$TEST_TMP/file"
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    umask 027
+    trap ": caller trap" EXIT
+    declare -a OPTS=(caller)
+    declare -A OPTS_HELP=([caller]=help) OPTS_VALUES=([caller]=value)
+    before=$(set +o; trap -p; pwd; umask; declare -p OPTS OPTS_HELP OPTS_VALUES)
+    lib::fs::file_replace_content "$2/file" old new
+    lib::fs::file_remove_content "$2/file" missing 2>/dev/null && exit 1
+    after=$(set +o; trap -p; pwd; umask; declare -p OPTS OPTS_HELP OPTS_VALUES)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT" "$TEST_TMP"
+  assert_success
+  assert_output ''
+  assert_equal "$(cat "$TEST_TMP/file")" new
+}

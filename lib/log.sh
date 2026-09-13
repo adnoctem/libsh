@@ -184,3 +184,49 @@ function lib::log::timed_green() {
 function lib::log::timed_cyan() {
   lib::log::timed "36m" "${1}"
 }
+
+#######################################
+# Append one plain-text log entry to a file, creating it when absent.
+# Message bytes are preserved and followed by one newline. Existing symlinks
+# to regular files are followed; missing parents are not created. This does
+# not lock concurrent writers or roll back a partially failed append.
+# Globals:
+#   PATH (read when timestamping); the caller's umask governs new files.
+# Arguments:
+#   1 - Log file path
+#   2 - Message (may be empty or contain embedded newlines)
+#   3 - Optional --timestamp, prefixing UTC time as [YYYY-MM-DDTHH:MM:SSZ]
+# Outputs:
+#   Entry to the file; errors to stderr. No stdout.
+# Returns:
+#   0 on success, 1 on timestamp/open/write failure, 2 on invalid arguments.
+# Dependencies:
+#   date, only with --timestamp.
+#######################################
+function lib::log::write() {
+  if [[ $# -lt 2 || $# -gt 3 || -z ${1:-} || ($# == 3 && $3 != --timestamp) ]]; then
+    lib::log::red 'write requires FILE MESSAGE and optional --timestamp.'
+    return 2
+  fi
+
+  local file=$1 message=$2 timestamp
+
+  if [[ (-e $file || -L $file) && ! -f $file ]]; then
+    lib::log::red 'Log destination must be a regular file or an absent path.'
+    return 1
+  fi
+
+  if [[ $# == 3 ]]; then
+    if ! timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ'); then
+      lib::log::red 'Could not obtain the log timestamp.'
+      return 1
+    fi
+
+    message="[$timestamp] $message"
+  fi
+
+  if ! printf '%s\n' "$message" >>"$file"; then
+    lib::log::red 'Could not append the log entry.'
+    return 1
+  fi
+}
