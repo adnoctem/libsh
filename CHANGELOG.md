@@ -1,3 +1,9 @@
+## [0.7.0](https://github.com/adnoctem/libsh/compare/v0.6.0...v0.7.0) (2026-09-13)
+
+### Features
+
+* **lib:** support in-place file editing with tmp staging ([7f6b47a](https://github.com/adnoctem/libsh/commit/7f6b47a802a90f806b7b15ceea2bb21ec2e46d41))
+
 ## [0.6.0](https://github.com/adnoctem/libsh/compare/v0.5.0...v0.6.0) (2026-09-13)
 
 ### ⚠ BREAKING CHANGES
