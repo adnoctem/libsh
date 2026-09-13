@@ -1,5 +1,31 @@
 # .gitignore - Bash library
 
+###> general/ai ###
+
+# personal harness settings
+.claude/
+.codex/
+.agents/
+.openaxis/
+.omc/
+.omx/
+
+# assistants and IDEs
+.cursor/
+.windsurf/
+.cline/
+.roo/
+.aide/
+.cody/
+.continue/
+
+# local integrations
+.ollama/
+.openwebui/
+.crewai/
+.autogen/
+###>
+
 ###> general/editors ###
 
 # IntelliJ IDEA
