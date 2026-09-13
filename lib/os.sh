@@ -805,9 +805,9 @@ function __libsh_os_account_command() {
 # Follows links by default, including targets outside the root. With -n, links
 # receive ownership changes only and their targets are never visited. Parent
 # path components are resolved normally. Special files receive ownership only.
-# Traversal is staged with NUL delimiters before mutation; directories are
-# changed after their contents. Failed mutations are not rolled back, and
-# concurrent path replacement is outside the contract.
+# Traversal is staged with NUL delimiters and checked for cycles before mutation;
+# directories are changed after their contents. Failed mutations are not rolled
+# back, and concurrent path replacement is outside the contract.
 # Globals:
 #   PATH, TMPDIR (read); traps and parser arrays remain in this subshell.
 # Arguments:
@@ -823,7 +823,7 @@ function __libsh_os_account_command() {
 #######################################
 function lib::os::recursive_configure() (
   [[ $# -ge 1 && -n $1 ]] || return 2
-  local path=$1 entry owner='' file_mode='' dir_mode='' mode flag=-L
+  local path=$1 entry ancestor owner='' file_mode='' dir_mode='' mode flag=-L
   local __libsh_os_paths=''
   # shellcheck disable=SC2034 # consumed through parser dynamic scope
   local -a OPTS=(
@@ -872,6 +872,23 @@ function lib::os::recursive_configure() (
   trap 'rm -f -- "$__libsh_os_paths"' EXIT
   trap 'exit 1' HUP INT TERM
   find "$flag" "$path" -depth -print0 >"$__libsh_os_paths" || return 1
+
+  # macOS find can emit directory cycles without returning a failure. Compare
+  # each directory with its traversal ancestors, allowing unrelated aliases.
+  while IFS= read -r -d '' entry; do
+    [[ $entry != "$path" && -d $entry ]] || continue
+    [[ $flag != -P || ! -L $entry ]] || continue
+
+    ancestor=$entry
+    while [[ $ancestor != "$path" && $ancestor != / ]]; do
+      ancestor=${ancestor%/*}
+      [[ -n $ancestor ]] || ancestor=/
+      if [[ $entry -ef $ancestor ]]; then
+        lib::log::red "Directory cycle detected: $entry"
+        return 1
+      fi
+    done
+  done <"$__libsh_os_paths"
 
   while IFS= read -r -d '' entry; do
     if [[ -n $owner ]]; then

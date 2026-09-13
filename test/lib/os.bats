@@ -753,6 +753,38 @@ teardown() {
   [[ ! -e $TEST_TMP/unexpected ]]
 }
 
+@test "recursive configure rejects cycles even when find reports success" {
+  mkdir -p "$TEST_TMP/tree/sub"
+  touch "$TEST_TMP/tree/file"
+  ln -s .. "$TEST_TMP/tree/sub/loop"
+  # shellcheck disable=SC2329 # macOS find includes the cycle without failing
+  find() {
+    printf '%s\0' "$TEST_TMP/tree/file" "$TEST_TMP/tree/sub/loop" \
+      "$TEST_TMP/tree/sub" "$TEST_TMP/tree"
+  }
+  # shellcheck disable=SC2329 # mutation sentinels
+  chmod() { touch "$TEST_TMP/unexpected"; }
+  # shellcheck disable=SC2329
+  chown() { touch "$TEST_TMP/unexpected"; }
+
+  run lib::os::recursive_configure "$TEST_TMP/tree" -u 123 -f 600
+  assert_failure 1
+  [[ ! -e $TEST_TMP/unexpected ]]
+}
+
+@test "recursive configure permits aliases without cycles" {
+  mkdir -p "$TEST_TMP/tree/sub"
+  touch "$TEST_TMP/tree/sub/file"
+  ln -s sub "$TEST_TMP/tree/alias"
+  ln -s sub "$TEST_TMP/tree/second"
+
+  run lib::os::recursive_configure "$TEST_TMP/tree" -f 600
+  assert_success
+  local mode
+  mode=$(__libsh_fs_stat "$TEST_TMP/tree/sub/file" attributes)
+  [[ ${mode%% *} == *600 ]]
+}
+
 @test "recursive configure preserves newline paths and strict caller state" {
   mkdir -p "$TEST_TMP/tree"
   touch "$TEST_TMP/tree/"$'a\nb'
