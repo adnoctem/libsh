@@ -13,6 +13,12 @@
 [![Testing](https://github.com/adnoctem/libsh/actions/workflows/testing.yaml/badge.svg)](https://github.com/adnoctem/libsh/actions/workflows/testing.yaml)
 [![GitHub last commit](https://img.shields.io/github/last-commit/adnoctem/libsh?label=Activity)](https://github.com/adnoctem/libsh/commits/main/)
 
+> [!WARNING]
+>
+> During pre-1.0 development (`0.x`), this project will regularly introduce breaking changes without a major version bump.
+> Public APIs, file layouts, and command-line interfaces may change between releases. Pin a release for reproducible builds
+> and review its release notes before updating. Stable compatibility guarantees will begin with version `1.0.0`.
+
 A library of open-source [MIT][license]-licensed [Bash][bash] scripts written and maintained by `Ad Noctem Collective` for use
 with [Bash][bash] version 4.0 and above. Refer to the GNU Projects's in-depth [Bash Documentation][bash_docs] for more
 information on how these scripts work. Scripts meant for direct execution by the user, an init system or other means of
