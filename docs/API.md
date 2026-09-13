@@ -1985,20 +1985,41 @@ Check if the current user is root
 #### `lib::os::root_exec`
 
 ```text
-lib::os::root_exec COMMAND [ARG ...]
+lib::os::root_exec [-e|--preserve-environment] [--] COMMAND [ARG ...]
 ```
 
-Prefix commands with sudo or not
+Run a command directly when already root, otherwise through `sudo`.
+`-e`/`--preserve-environment` requests `sudo -E`. Without that option, sudo uses
+its normal environment policy. When already root, the option is consumed and
+execution remains direct; there is no additional environment change.
 
 **Arguments:**
 
-- 1+ - Command and its arguments
+- Optional leading `-e` or `--preserve-environment`; repeated occurrences are harmless.
+- Optional `--` ends wrapper-option parsing.
+- A nonempty command followed by its arguments, passed without splitting or evaluation.
 
-**Outputs:** Command stdout and stderr, unchanged.
+Parsing stops at the command. For example, `root_exec command -e` passes `-e`
+to the command. Unsupported leading options fail; this is not a general sudo
+option passthrough. Sudo receives its own `--` before the command.
 
-**Returns:** The command or sudo exit status.
+Preservation applies to exported environment variables, subject to sudo policy:
+policy may filter variables or reject the request. It does not export shell-local
+variables, carry sourced functions into a new process, or remove the need to
+source libsh inside an elevated Bash process. See the
+[sudo option contract](https://github.com/sudo-project/sudo/blob/main/docs/sudo.man.in).
 
-**Globals:** EUID (read)
+```bash
+export LIBSH_DIR=/usr/local/lib/libsh
+lib::os::root_exec -e -- bash -c 'source "$LIBSH_DIR/lib.sh" || exit; lib::os::root_check'
+```
+
+**Outputs:** Command stdout and stderr unchanged; invocation errors on stderr.
+
+**Returns:** Command or sudo exit status, including environment-policy rejection;
+`2` for invalid wrapper options or a missing/empty command.
+
+**Globals:** `EUID`, `PATH` and the exported environment (read).
 
 #### `lib::os::rc`
 

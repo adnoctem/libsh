@@ -307,7 +307,7 @@ fake_uname_darwin() {
 
   PATH="$TEST_TMP:$PATH" run lib::os::root_exec apt-get update
 
-  assert_output "sudo called with: apt-get update"
+  assert_output "sudo called with: -- apt-get update"
 }
 
 @test "lib::os::root_exec runs the command directly when root" {
@@ -333,7 +333,8 @@ fake_uname_darwin() {
 
   PATH="$TEST_TMP:$PATH" run lib::os::root_exec cp -- "a file" "another file"
 
-  assert_output "[cp]
+  assert_output "[--]
+[cp]
 [--]
 [a file]
 [another file]"
@@ -769,4 +770,96 @@ teardown() {
   local mode
   mode=$(PATH="$ORIGINAL_PATH" __libsh_fs_stat "$TEST_TMP/tree/"$'a\nb' attributes)
   [[ ${mode%% *} == *600 ]]
+}
+
+@test "root_exec maps preservation aliases to sudo -E before the command boundary" {
+  if [[ $EUID == 0 ]]; then skip 'sudo branch requires nonroot'; fi
+
+  # shellcheck disable=SC2329 # called indirectly by root_exec
+  sudo() { printf '<%s>\n' "$@"; }
+
+  local option
+  for option in -e --preserve-environment; do
+    run lib::os::root_exec "$option" -- command 'a b' '' --preserve-environment -e
+    assert_success
+    assert_output $'<-E>\n<-->\n<command>\n<a b>\n<>\n<--preserve-environment>\n<-e>'
+  done
+
+  run lib::os::root_exec -- command -e
+  assert_success
+  assert_output $'<-->\n<command>\n<-e>'
+
+  run lib::os::root_exec -e --preserve-environment command
+  assert_success
+  assert_output $'<-E>\n<-->\n<command>'
+}
+
+@test "root_exec rejects invalid wrapper invocations before execution" {
+  # shellcheck disable=SC2329 # called indirectly by root_exec
+  sudo() { printf 'must not execute\n'; }
+
+  run lib::os::root_exec
+  assert_failure 2
+  run lib::os::root_exec -e
+  assert_failure 2
+  run lib::os::root_exec --
+  assert_failure 2
+  run lib::os::root_exec --preserve-environment ''
+  assert_failure 2
+  run lib::os::root_exec --unknown command
+  assert_failure 2
+  refute_output --partial 'must not execute'
+}
+
+# shellcheck disable=SC2016 # literal data and source code for the child Bash
+@test "root_exec preservation retains exported values streams and failure status" {
+  # Stand-in executes only the caller's harmless Bash command, never real sudo.
+  # shellcheck disable=SC2329 # called indirectly by root_exec
+  sudo() {
+    [[ $1 == -E && $2 == -- ]] || return 98
+    shift 2
+    "$@"
+  }
+
+  export LIBSH_ROOT_EXEC_TEST_VALUE='spaces and literal $text'
+  local stdout="$TEST_TMP/stdout" stderr="$TEST_TMP/stderr" status=0
+  lib::os::root_exec -e bash -c \
+    'printf "%s" "$LIBSH_ROOT_EXEC_TEST_VALUE"; printf error >&2; exit 7' \
+    >"$stdout" 2>"$stderr" || status=$?
+
+  assert_equal "$status" 7
+  assert_equal "$(cat "$stdout")" 'spaces and literal $text'
+  assert_equal "$(cat "$stderr")" error
+}
+
+@test "root_exec consumes preservation options without sudo when already root" {
+  if [[ $EUID != 0 ]]; then skip 'direct branch requires root'; fi
+  # shellcheck disable=SC2329 # called indirectly by root_exec
+  sudo() { return 98; }
+
+  local option
+  for option in -e --preserve-environment; do
+    run lib::os::root_exec "$option" -- printf '<%s>\n' 'a b' '' -e
+    assert_success
+    assert_output $'<a b>\n<>\n<-e>'
+  done
+}
+
+@test "root_exec preserves strict caller state and propagates sudo rejection" {
+  run bash -c '
+    set -euo pipefail
+    source "$1/lib/lib.sh"
+    sudo() { return 9; }
+    declare -a OPTS=(sentinel)
+    declare -A OPTS_HELP=([sentinel]=description) OPTS_VALUES=([sentinel]=value)
+    trap ":" USR1
+    before=$(set +o); traps=$(trap -p); mask=$(umask); directory=$PWD
+    status=0
+    lib::os::root_exec -e false || status=$?
+    if [[ $EUID == 0 ]]; then [[ $status == 1 ]]; else [[ $status == 9 ]]; fi
+    [[ $(set +o) == "$before" && $(trap -p) == "$traps" ]]
+    [[ $(umask) == "$mask" && $PWD == "$directory" ]]
+    [[ ${OPTS[0]} == sentinel && ${OPTS_HELP[sentinel]} == description && ${OPTS_VALUES[sentinel]} == value ]]
+  ' _ "$REPO_ROOT"
+  assert_success
 }

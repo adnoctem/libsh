@@ -171,19 +171,51 @@ function lib::os::root_check() {
 }
 
 #######################################
-# Prefix commands with sudo or not
+# Run a command directly as root, otherwise through sudo.
+# Environment preservation is opt-in and remains subject to sudo policy.
+# It applies to exported variables, not the caller's sourced shell functions.
 # Globals:
-#   EUID (read)
+#   EUID, PATH and the exported environment (read)
 # Arguments:
-#   1+ - Command and its arguments
+#   1+ - Optional -e/--preserve-environment, optional --, then COMMAND and argv
 # Outputs:
-#   Command stdout and stderr, unchanged.
+#   Command stdout and stderr, unchanged; invocation errors on stderr.
 # Returns:
-#   The command or sudo exit status.
+#   The command or sudo exit status; 2 for invalid options or a missing command.
 #######################################
 function lib::os::root_exec() {
+  local preserve_environment=0
+
+  # Parse only wrapper options; everything after COMMAND belongs to the command.
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -e | --preserve-environment)
+        preserve_environment=1
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        lib::log::red "Unknown root_exec option: $1"
+        return 2
+        ;;
+      *) break ;;
+    esac
+  done
+
+  if [[ $# == 0 || -z $1 ]]; then
+    lib::log::red 'root_exec requires a command.'
+    return 2
+  fi
+
   if [[ $EUID -ne 0 ]]; then
-    sudo "$@"
+    if [[ $preserve_environment == 1 ]]; then
+      sudo -E -- "$@"
+    else
+      sudo -- "$@"
+    fi
   else
     "$@"
   fi
