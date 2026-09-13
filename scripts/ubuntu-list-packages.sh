@@ -154,6 +154,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   filename="${OPTS_VALUES[output_file]:-}"
   all="${OPTS_VALUES[all]:-}"

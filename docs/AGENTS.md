@@ -50,7 +50,8 @@ Run `make init` first (checks out BATS submodules).
   `declare -A OPTS_VALUES` first; spec format is
   `"<short>,<long>:<key>:<0|1>:<required|optional>"`. Provide `--help`,
   `--check-prerequisites`, `--dry-run` for state changes, and gate destructive
-  actions with `ext::ui::confirm`.
+  actions with `ext::ui::confirm`. After parsing, return from `main` if `${OPTS_VALUES[help]:-}` is `1`;
+  help returns to the caller. Library functions declare all three parser arrays locally.
 - Scripts resolve `LIBSH_DIR` (nonempty wins) with a checkout `../lib` fallback,
   fail if the library is missing, and `cd -P` once before sourcing. Never invoke
   `libman` at runtime.

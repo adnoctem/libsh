@@ -152,6 +152,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   skip_refresh="${OPTS_VALUES[skip_refresh]:-}"
   assume_yes="${OPTS_VALUES[assume_yes]:-}"

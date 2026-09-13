@@ -18,6 +18,10 @@
 !test/integration/**
 !test/lib/
 !test/lib/net.bats
+!test/lib/core.bats
+!test/lib/data.bats
+!test/lib/opt.bats
+!test/lib/os.bats
 !test/extensions/
 !test/extensions/secret.bats
 !test/bats/

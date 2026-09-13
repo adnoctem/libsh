@@ -107,6 +107,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 2
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   fail_on="${OPTS_VALUES[fail_on]:-any}"
   max_list_age="${OPTS_VALUES[max_list_age]:-7}"

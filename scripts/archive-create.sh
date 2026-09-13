@@ -217,6 +217,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   destination="${OPTS_VALUES[output_dir]:-${HOME}/.libsh}"
   compression="${OPTS_VALUES[compression]:-gzip}"

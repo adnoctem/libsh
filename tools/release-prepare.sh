@@ -215,6 +215,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   version="${OPTS_VALUES[version]}"
   dry_run="${OPTS_VALUES[dry_run]:-}"

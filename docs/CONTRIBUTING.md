@@ -341,6 +341,8 @@ review.
   Resolve that directory physically once before sourcing modules, so updates cannot mix releases.
   See [the consumer example](../bin/README.md#consume-the-library-in-scripts). Do not invoke `libman` at runtime.
 - Parse arguments through `lib::opt::parse` rather than positionally, and expose `--help` and `--check-prerequisites`
+- The parser returns on help: after parsing, return from `main` when `${OPTS_VALUES[help]:-}` is `1`.
+  Library functions declare all three parser arrays locally to preserve the enclosing caller's state.
 - Anything that changes state also offers `--dry-run`
 - Anything destructive is gated behind `ext::ui::confirm`, with `-y`/`--yes` to bypass it for unattended runs
 - Secrets are read from a file or an environment variable, never accepted as a plain command-line argument alone

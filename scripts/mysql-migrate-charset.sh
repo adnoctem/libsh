@@ -260,6 +260,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   password="${OPTS_VALUES[password]:-}"
   password_file="${OPTS_VALUES[password_file]:-}"

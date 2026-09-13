@@ -4,8 +4,8 @@
 #
 # Calling convention
 # -------------------
-# The calling script defines three globals *before* invoking
-# lib::opt::parse, and reads results from a fourth populated by it:
+# The calling script defines three arrays *before* invoking
+# lib::opt::parse, and reads results from OPTS_VALUES:
 #
 #   OPTS=(
 #     "-u,--username:username:1:required"
@@ -22,6 +22,7 @@
 #   declare -A OPTS_VALUES=()
 #
 #   lib::opt::parse "$@" || exit 1
+#   [[ ${OPTS_VALUES[help]:-} != 1 ]] || exit 0
 #
 # Spec entry format (colon-separated fields; first field is
 # comma-separated short,long -- either may be omitted, not both):
@@ -32,8 +33,12 @@
 #   - value flags:   OPTS_VALUES[<key>] holds the supplied string
 #   - boolean flags: OPTS_VALUES[<key>] is "1" if passed, unset otherwise
 #   - a spec entry whose <key> is literally "help" triggers
-#     lib::opt::usage and `exit 0` immediately, before validation
+#     lib::opt::usage, sets OPTS_VALUES["help"]=1, and returns 0 before validation
 #   - missing "required" entries print an error + usage and return 1
+#
+# Library callers must declare local OPTS, OPTS_HELP, and OPTS_VALUES arrays
+# before parsing. Bash dynamic scope keeps their parser state local. Handle the
+# help marker by returning to your caller; the parser never exits the shell.
 #
 # Requires bash >= 4 (associative arrays). No nameref usage, so it also
 # works on bash 4.0-4.2 where `local -n` is unavailable.
@@ -55,7 +60,7 @@ function lib::opt::usage() {
   echo
 
   local entry flags key takes_value required short long label
-  for entry in "${OPTS[@]}"; do
+  for entry in ${OPTS[@]+"${OPTS[@]}"}; do
     IFS=':' read -r flags key takes_value required <<<"$entry"
     IFS=',' read -r short long <<<"$flags"
 
@@ -85,7 +90,8 @@ function lib::opt::usage() {
 #   or a required flag not supplied (each case prints an error first).
 # Outputs:
 #   Nothing on success. Errors to stderr via lib::log::red on failure.
-#   Calls lib::opt::usage + exit 0 immediately if a "help" key is hit.
+#   On help, prints usage, sets OPTS_VALUES["help"]=1, and returns 0.
+#   Library callers should locally declare all three OPTS arrays.
 #######################################
 function lib::opt::parse() {
   OPTS_VALUES=()
@@ -94,7 +100,7 @@ function lib::opt::parse() {
     local matched=0
     local entry flags key takes_value required short long
 
-    for entry in "${OPTS[@]}"; do
+    for entry in ${OPTS[@]+"${OPTS[@]}"}; do
       IFS=':' read -r flags key takes_value required <<<"$entry"
       IFS=',' read -r short long <<<"$flags"
 
@@ -104,7 +110,8 @@ function lib::opt::parse() {
 
         if [[ $key == "help" ]]; then
           lib::opt::usage
-          exit 0
+          OPTS_VALUES["help"]=1
+          return 0
         fi
 
         if [[ $takes_value == "1" ]]; then
@@ -130,7 +137,7 @@ function lib::opt::parse() {
 
   local missing=()
   local m_entry m_flags m_key m_takes_value m_required m_short m_long
-  for m_entry in "${OPTS[@]}"; do
+  for m_entry in ${OPTS[@]+"${OPTS[@]}"}; do
     # shellcheck disable=SC2034  # takes_value isn't needed for this pass
     IFS=':' read -r m_flags m_key m_takes_value m_required <<<"$m_entry"
     if [[ $m_required == "required" && -z ${OPTS_VALUES[$m_key]:-} ]]; then
@@ -141,8 +148,8 @@ function lib::opt::parse() {
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     lib::log::red "Missing required option(s): ${missing[*]}"
-    echo
-    lib::opt::usage
+    echo >&2
+    lib::opt::usage >&2
     return 1
   fi
 

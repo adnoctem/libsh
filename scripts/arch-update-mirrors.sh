@@ -202,6 +202,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   countries="${OPTS_VALUES[countries]:-Germany,Netherlands,Sweden,Belgium,France,Austria}"
   latest="${OPTS_VALUES[latest]:-10}"

@@ -208,6 +208,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   country="${OPTS_VALUES[country]:-de}"
   mirror="${OPTS_VALUES[mirror]:-}"

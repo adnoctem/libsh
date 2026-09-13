@@ -202,6 +202,7 @@ function main() {
   done
 
   lib::opt::parse "$@" || return 1
+  [[ ${OPTS_VALUES[help]:-} != 1 ]] || return 0
 
   skip_aur="${OPTS_VALUES[skip_aur]:-}"
   assume_yes="${OPTS_VALUES[assume_yes]:-}"

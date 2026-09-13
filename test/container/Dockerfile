@@ -25,7 +25,7 @@ COPY extensions /opt/libsh-test/extensions
 COPY test/bin /opt/libsh-test/test/bin
 COPY test/bats /opt/libsh-test/test/bats
 COPY test/extensions/secret.bats /opt/libsh-test/test/extensions/
-COPY test/lib/net.bats /opt/libsh-test/test/lib/
+COPY test/lib/net.bats test/lib/core.bats test/lib/data.bats test/lib/opt.bats test/lib/os.bats /opt/libsh-test/test/lib/
 COPY test/integration /opt/libsh-test/test/integration
 COPY test/container/run.sh /opt/libsh-test/run.sh
 RUN ln -s /usr/local/lib/libsh.libman/current/lib /usr/local/lib/libsh \

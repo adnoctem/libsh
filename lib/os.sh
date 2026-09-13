@@ -138,21 +138,20 @@ function lib::os::state_home() {
   printf '%s' "$base"
 }
 
-# Work with packages and executables.
-
+#######################################
+# Check whether the shell can resolve a command without changing caller state.
+# Globals: PATH (read)
+# Arguments: One command name (including builtins/functions).
+# Outputs: Errors on stderr for incorrect argument count; otherwise none.
+# Returns: 0 available, 1 unavailable/empty, 2 incorrect argument count.
+#######################################
 function lib::os::is_executable() {
-  local package=${1}
-
-  if [[ -z $package ]]; then
-    return 1
+  if [[ $# != 1 ]]; then
+    lib::log::red 'is_executable requires one command name.'
+    return 2
   fi
-
-  command_package=$(command -v "$package")
-  if [[ -z $command_package ]]; then
-    return 1
-  fi
-
-  return 0
+  [[ -n $1 ]] || return 1
+  command -v -- "$1" >/dev/null 2>&1
 }
 
 # Run commands with elevated privileges.
@@ -176,19 +175,21 @@ function lib::os::root_exec() {
 }
 
 #######################################
-# Reload the rc files for Bash (and/or Zsh).
-# Globals:
-#   HOME (read)
-# Arguments:
-#   None
-# Returns:
-#   0, whether or not either file exists.
+# Reload Bash configuration in the current shell. Zsh configuration is not read.
+# Globals: HOME (read); the sourced Bash configuration may change caller state.
+# Arguments: None
+# Outputs: Whatever the Bash configuration prints; invocation errors on stderr.
+# Returns: 0 when absent, otherwise the source status; 2 for unexpected arguments.
 #######################################
 function lib::os::rc() {
-  # shellcheck disable=SC1090,SC1091 # caller-owned rc file
-  if [ -e "${HOME}/.bashrc" ]; then source "${HOME}/.bashrc"; fi
-  # shellcheck disable=SC1090,SC1091 # caller-owned rc file
-  if [ -e "${HOME}/.zshrc" ]; then source "${HOME}/.zshrc"; fi
-
+  if [[ $# != 0 ]]; then
+    lib::log::red 'rc takes no arguments.'
+    return 2
+  fi
+  if [[ -e ${HOME}/.bashrc ]]; then
+    # shellcheck disable=SC1090,SC1091 # caller-owned Bash configuration
+    source "${HOME}/.bashrc"
+    return $?
+  fi
   return 0
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
-	REPO_ROOT=$(git rev-parse --show-toplevel)
+	REPO_ROOT=${REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}
 
 	load "$REPO_ROOT/test/bats/plugins/bats-support/load"
 	load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
@@ -390,12 +390,12 @@ fake_uname_darwin() {
 	assert_equal "${LIBSH_RC_MARKER:-}" "bashrc"
 }
 
-@test "lib::os::rc sources an existing .zshrc" {
+@test "lib::os::rc does not source Zsh configuration into Bash" {
 	printf 'LIBSH_ZSH_MARKER=zshrc\n' >"$HOME/.zshrc"
 
 	lib::os::rc
 
-	assert_equal "${LIBSH_ZSH_MARKER:-}" "zshrc"
+	assert_equal "${LIBSH_ZSH_MARKER:-}" ""
 }
 
 @test "lib::os::rc succeeds when neither rc file exists" {
@@ -408,4 +408,19 @@ teardown() {
 	cd "$ORIGINAL_PWD" || return 1
 	export HOME="$ORIGINAL_HOME" PATH="$ORIGINAL_PATH"
 	if [[ -n ${TEST_TMP:-} ]]; then rm -rf "$TEST_TMP"; fi
+}
+
+@test "executable lookup preserves caller variables and produces no stdout" {
+	command_package=sentinel
+	local captured
+	captured=$(lib::os::is_executable bash)
+	assert_equal "$captured" ''
+	lib::os::is_executable bash
+	assert_equal "$command_package" sentinel
+}
+
+@test "rc propagates Bash configuration failures" {
+	printf 'return 17\n' >"$HOME/.bashrc"
+	run lib::os::rc
+	assert_failure 17
 }
