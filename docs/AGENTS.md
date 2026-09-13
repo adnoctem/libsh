@@ -77,8 +77,8 @@ Run `make init` first (checks out BATS submodules).
 
 ## Known state
 
-- `make lint`'s markdownlint step currently fails on the generated `CHANGELOG.md`
-  (MD024); pre-commit excludes it, and CI's lint job uses pre-commit. Do not hand-edit it.
-- `API.md` documents only a subset of public functions; TODO.md tracks finishing it.
+- Generated `CHANGELOG.md` is excluded from lint/format checks; do not hand-edit it.
+- `API.md` covers every public core/extension function; `test/lib/libsh.bats` checks
+  that each public function has exactly one reference entry. Keep behavior and docs aligned.
 - `mysql-backup.sh` / `mysql-restore.sh` function prefixes do not match their
   filenames yet (tracked in TODO.md); new scripts must not copy that pattern.

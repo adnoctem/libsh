@@ -407,6 +407,7 @@ install_release() {
 @test "scripts diagnose an old explicit installation instead of falling back" {
   local old="$BATS_TEST_TMPDIR/old-library" script
   mkdir -p "$old"
+  old=$(cd -P "$old" && pwd)
   printf 'lib::lib::load() { :; }\nlib::lib::load\n' >"$old/lib.sh"
   for script in "$REPO_ROOT"/scripts/*.sh; do
     run env LIBSH_DIR="$old" bash "$script" --help

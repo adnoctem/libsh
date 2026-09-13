@@ -6,9 +6,6 @@
 
 ## ✏️ Planned Changes
 
-- Complete [API.md](API.md) for the remaining public functions after reviewing module/function naming in `lib/`.
-  Reconcile the source doc comments, [NOMENCLATURE.md](NOMENCLATURE.md), and [CONTRIBUTING.md](CONTRIBUTING.md)
-  with the planned documentation specification in that separate pass.
 - Align `mysql-backup.sh` and `mysql-restore.sh` function prefixes with their filenames (`mysql_backup::` and
   `mysql_restore::`), updating their call sites in the same change.
 - Finish BATS testing for all of `lib`
@@ -17,7 +14,6 @@
 
 ## 💡 Ideas
 
-- Potentially introduce a new top-level `lib` "namespace" to functions from library scripts
 - Add public URL to use the `install` executable like `get.libsh.adnoctem.co` using GitHub Pages
 - Add POSIX utilities for working with arrays like [`krebs/array`](https://github.com/krebs/array/blob/master/array)
 

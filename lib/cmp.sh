@@ -297,8 +297,8 @@ function __libsh_cmp_tree_check() {
 function __libsh_cmp_links() {
   local left right
 
-  left=$(readlink "$1" && printf '.') || return 2
-  right=$(readlink "$2" && printf '.') || return 2
+  left=$(readlink -n "$1" && printf '.') || return 2
+  right=$(readlink -n "$2" && printf '.') || return 2
   [[ $left == "$right" ]]
 }
 

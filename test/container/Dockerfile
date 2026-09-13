@@ -1,3 +1,4 @@
+# checkov:skip=CKV_DOCKER_2:This image runs a finite test suite, not a service.
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gcc libc6-dev make && rm -rf /var/lib/apt/lists/*
@@ -24,7 +25,7 @@ COPY scripts /opt/libsh-test/scripts
 COPY extensions /opt/libsh-test/extensions
 COPY test/bin /opt/libsh-test/test/bin
 COPY test/bats /opt/libsh-test/test/bats
-COPY test/extensions/secret.bats /opt/libsh-test/test/extensions/
+COPY test/extensions/secret.bats test/extensions/apk.bats test/extensions/dnf.bats test/extensions/py.bats /opt/libsh-test/test/extensions/
 COPY test/lib/net.bats test/lib/core.bats test/lib/data.bats test/lib/opt.bats test/lib/os.bats \
     test/lib/fs.bats test/lib/hash.bats test/lib/cmp.bats test/lib/log.bats /opt/libsh-test/test/lib/
 COPY test/integration /opt/libsh-test/test/integration

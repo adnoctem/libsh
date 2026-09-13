@@ -28,6 +28,9 @@
 !test/lib/cmp.bats
 !test/extensions/
 !test/extensions/secret.bats
+!test/extensions/apk.bats
+!test/extensions/dnf.bats
+!test/extensions/py.bats
 !test/bats/
 !test/bats/**
 **/.git

@@ -30,6 +30,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # CHANGELOG.md is a generated file from `semantic-release`
           # Dockerfile is only used for testing in container isolation, and is not part of the library itself or ever shipped
-          FILTER_REGEX_EXCLUDE: (.*Dockerfile$|.*CHANGELOG\.md$)
+          FILTER_REGEX_EXCLUDE: (.*Dockerfile$|.*CHANGELOG\.md$|(^|/)(test/bats|secrets|dist)/)
+          BASH_EXEC_IGNORE_LIBRARIES: true
+          TRIVY_IGNOREFILE: .github/linters/.trivyignore.yaml
+          # Prettier owns JSON formatting; keep Biome lint checks enabled.
+          VALIDATE_BIOME_FORMAT: false
           # mostly false positives
           VALIDATE_SPELL_CODESPELL: false

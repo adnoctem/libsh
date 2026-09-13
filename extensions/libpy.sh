@@ -3,31 +3,52 @@
 # Create and activate Python virtual environments.
 
 #######################################
-# Activate the Python venv in the current directory, creating it first if
-# it does not exist yet.
+# Activate a Python venv in this shell, creating an absent path first.
+# Existing incomplete paths are refused rather than overwritten. --python
+# selects the creation interpreter only; existing environments are activated
+# as-is. Failed creation can leave a partial directory for caller inspection.
 # Globals:
 #   Activation may modify PATH, VIRTUAL_ENV, the prompt and shell functions.
 # Arguments:
-#   None
+#   1 - Optional venv path (default .venv in the current directory)
+#   2+ - Optional --python COMMAND_OR_PATH (default python3, then python)
 # Outputs:
-#   Whatever 'python -m venv' writes, when it has to create the venv.
+#   Python/activation output; errors to stderr.
 # Returns:
-#   The venv creation failure status, or the activation script status.
+#   Creation/activation status; 1 incomplete path/missing interpreter,
+#   2 invalid invocation. Activation failures may partially change the shell.
 #######################################
 function ext::py::venv() {
-  local venv activate python
+  local venv=$PWD/.venv activate python
+  # shellcheck disable=SC2034 # consumed through parser dynamic scope
+  local -a OPTS=('--python,:python:1:optional')
+  # shellcheck disable=SC2034
+  local -A OPTS_HELP=([python]='Creation interpreter') OPTS_VALUES=()
 
-  venv="$(pwd)/.venv"
-  activate="$venv/bin/activate"
+  if [[ $# -gt 0 && $1 != --* ]]; then
+    [[ -n $1 ]] || return 2
+    venv=$1
+    shift
+  fi
+  lib::opt::parse ${1+"$@"} || return 2
+  [[ ! ${OPTS_VALUES[python]+set} || -n ${OPTS_VALUES[python]} ]] || return 2
+  [[ $venv == /* ]] || venv=$PWD/$venv
+  activate=$venv/bin/activate
 
-  if [[ ! -e $activate ]]; then
-    # Ubuntu and Debian ship 'python3' with no unversioned 'python'.
-    python=python3
-    command -v python3 >/dev/null 2>&1 || python=python
-
+  if [[ ! -e $venv && ! -L $venv ]]; then
+    python=${OPTS_VALUES[python]:-python3}
+    if [[ ! ${OPTS_VALUES[python]+set} ]] && ! command -v "$python" >/dev/null 2>&1; then
+      python=python
+    fi
+    command -v "$python" >/dev/null 2>&1 || return 1
     "$python" -m venv "$venv" || return $?
   fi
 
-  # shellcheck disable=SC1090 # activation path determined at runtime
+  if [[ ! -f $activate || ! -r $activate ]]; then
+    lib::log::red 'The venv path has no readable activation script.'
+    return 1
+  fi
+
+  # shellcheck disable=SC1090 # caller-selected activation script
   source "$activate"
 }

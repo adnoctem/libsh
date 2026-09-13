@@ -4,7 +4,9 @@ set -euo pipefail
 cd /src
 mkdir -p /tmp/libsh-assets /tmp/libsh-download
 tar -czf /tmp/libsh-assets/libsh-lib-0.0.0-test.tar.gz lib
-tar -czf /tmp/libsh-assets/libsh-ext-secret-0.0.0-test.tar.gz extensions/libsecret.sh
+for addon in secret apk dnf py; do
+  tar -czf "/tmp/libsh-assets/libsh-ext-$addon-0.0.0-test.tar.gz" "extensions/lib$addon.sh"
+done
 (
   cd /tmp/libsh-assets
   sha256sum ./*.tar.gz | sed 's|  ./|  |' >CHECKSUMS_SHA256.txt
@@ -16,7 +18,7 @@ set -euo pipefail
 case $8 in
   https://github.com/adnoctem/libsh/releases/download/v0.0.0-test/CHECKSUMS_SHA256.txt | \
     https://github.com/adnoctem/libsh/releases/download/v0.0.0-test/libsh-lib-0.0.0-test.tar.gz | \
-    https://github.com/adnoctem/libsh/releases/download/v0.0.0-test/libsh-ext-secret-0.0.0-test.tar.gz)
+    https://github.com/adnoctem/libsh/releases/download/v0.0.0-test/libsh-ext-*-0.0.0-test.tar.gz)
     cp "/tmp/libsh-assets/${8##*/}" "$7"
     ;;
   *) exit 1 ;;
@@ -25,4 +27,4 @@ CURL
 chmod +x /tmp/libsh-download/curl
 umask 077
 PATH="/tmp/libsh-download:$PATH" LIBSH_VERSION=0.0.0-test \
-  LIBSH_NO_MODIFY_PROFILE=1 LIBSH_INSTALL_DIR=/usr/local/lib/libsh bash bin/install --extensions secret
+  LIBSH_NO_MODIFY_PROFILE=1 LIBSH_INSTALL_DIR=/usr/local/lib/libsh bash bin/install --extensions secret,apk,dnf,py

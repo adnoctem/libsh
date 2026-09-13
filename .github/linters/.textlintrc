@@ -1,0 +1,15 @@
+{
+  "filters": {
+    "comments": true
+  },
+  "rules": {
+    "terminology": {
+      "exclude": [
+        "blank line(s)?",
+        "to-?do(s)?(?=[ ,.])",
+        "Angular[ .]?js",
+        "cURL"
+      ]
+    }
+  }
+}

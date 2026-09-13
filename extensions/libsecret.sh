@@ -258,3 +258,75 @@ function ext::secret::resolve() {
 
   printf -v "$__libsh_res_out" '%s' "$__libsh_res_selected"
 }
+
+#######################################
+# Generate a secret into a caller-owned scalar using /dev/urandom.
+# Rejection sampling avoids modulo bias. ASCII means bytes 32..126, including
+# space but no controls; alphanumeric means A-Z, a-z and 0-9. Output is assigned
+# only on complete success and is never printed or included in diagnostics.
+# Globals:
+#   Named output scalar (written on success); PATH (read).
+# Arguments:
+#   1 - Output scalar variable name
+#   2+ - -t/--type alphanumeric (default), numeric, ascii or ASCII;
+#        -l/--length 1..65536 (default 32)
+# Outputs:
+#   Sanitized errors to stderr; no stdout.
+# Returns:
+#   0 generated, 1 random-source/tool failure, 2 invalid invocation/reference.
+# Dependencies:
+#   od and /dev/urandom, only at invocation.
+#######################################
+function ext::secret::generate() {
+  [[ $# -ge 1 ]] || return 2
+  __libsh_data_scalar_reference "$1" write || return 2
+  local __libsh_gen_out=$1 __libsh_gen_length __libsh_gen_alphabet __libsh_gen_count
+  local __libsh_gen_limit __libsh_gen_data __libsh_gen_byte __libsh_gen_size
+  local __libsh_gen_draws=0 __libsh_gen_result='' __libsh_gen_char __libsh_gen_i
+  local LC_ALL=C IFS=$' \t\n'
+  # shellcheck disable=SC2034 # consumed through parser dynamic scope
+  local -a OPTS=('-t,--type:type:1:optional' '-l,--length:length:1:optional')
+  # shellcheck disable=SC2034
+  local -A OPTS_HELP=([type]='Character alphabet' [length]='Secret length') OPTS_VALUES=()
+
+  shift
+  lib::opt::parse ${1+"$@"} || return 2
+  __libsh_gen_length=$(__libsh_data_uint "${OPTS_VALUES[length]-32}") || return 2
+  [[ $__libsh_gen_length -ge 1 && $__libsh_gen_length -le 65536 ]] || return 2
+  case ${OPTS_VALUES[type]-alphanumeric} in
+    alphanumeric) __libsh_gen_alphabet=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ;;
+    numeric) __libsh_gen_alphabet=0123456789 ;;
+    ascii | ASCII)
+      __libsh_gen_alphabet=''
+      for ((__libsh_gen_i = 32; __libsh_gen_i <= 126; __libsh_gen_i++)); do
+        printf -v __libsh_gen_char '\\%03o' "$__libsh_gen_i"
+        printf -v __libsh_gen_char '%b' "$__libsh_gen_char"
+        __libsh_gen_alphabet+=$__libsh_gen_char
+      done
+      ;;
+    *) return 2 ;;
+  esac
+  __libsh_gen_count=${#__libsh_gen_alphabet}
+  __libsh_gen_limit=$((256 / __libsh_gen_count * __libsh_gen_count))
+
+  while [[ ${#__libsh_gen_result} -lt $__libsh_gen_length ]]; do
+    __libsh_gen_size=$(((__libsh_gen_length - ${#__libsh_gen_result}) * 2 + 32))
+    [[ $__libsh_gen_size -le 4096 ]] || __libsh_gen_size=4096
+    __libsh_gen_data=$(od -An -v -tu1 -N "$__libsh_gen_size" /dev/urandom) || return 1
+    [[ $__libsh_gen_data =~ [0-9] && $__libsh_gen_data != *[!0-9[:space:]]* ]] || return 1
+
+    for __libsh_gen_byte in $__libsh_gen_data; do
+      [[ ${#__libsh_gen_byte} -le 3 ]] || return 1
+      __libsh_gen_byte=$((10#$__libsh_gen_byte))
+      [[ $__libsh_gen_byte -le 255 ]] || return 1
+      __libsh_gen_draws=$((__libsh_gen_draws + 1))
+      [[ $__libsh_gen_draws -le $((__libsh_gen_length * 16 + 256)) ]] || return 1
+      [[ $__libsh_gen_byte -lt $__libsh_gen_limit ]] || continue
+      __libsh_gen_i=$((__libsh_gen_byte % __libsh_gen_count))
+      __libsh_gen_result+=${__libsh_gen_alphabet:__libsh_gen_i:1}
+      [[ ${#__libsh_gen_result} -lt $__libsh_gen_length ]] || break
+    done
+  done
+
+  printf -v "$__libsh_gen_out" '%s' "$__libsh_gen_result"
+}

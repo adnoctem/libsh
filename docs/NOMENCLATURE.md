@@ -39,7 +39,7 @@ for header layout and logical paragraph boundaries. Short, readable `case` arms 
 >
 > Function Nomenclature: `<domain>_<verb>[_<object>]::<function>`
 
-### File names
+### Filenames
 
 Use lowercase words separated by hyphens and the `.sh` extension. Names identify
 one operation on a system or resource:

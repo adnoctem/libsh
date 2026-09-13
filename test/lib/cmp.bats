@@ -282,3 +282,15 @@ setup() {
   run lib::cmp::file_compare "$LEFT/file" "$RIGHT/file"
   assert_failure 1
 }
+
+@test "link comparisons request exact bytes from BSD readlink" {
+  readlink() {
+    [[ $1 == -n ]] || return 1
+    command readlink "$@"
+  }
+
+  ln -s missing "$LEFT/link"
+  ln -s $'missing\n' "$RIGHT/link"
+  run lib::cmp::dir_diff "$LEFT" "$RIGHT"
+  assert_failure 1
+}

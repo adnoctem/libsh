@@ -310,3 +310,18 @@ HEADER
   run assert_function_header "$fixture.bad" "$definition"
   assert_failure 1
 }
+
+@test "API reference documents every public function exactly once" {
+  local source_names="$BATS_TEST_TMPDIR/source-names"
+  local documented_names="$BATS_TEST_TMPDIR/documented-names"
+
+  sed -nE 's/^function ((lib|ext)::[a-zA-Z0-9_:]+)\(\).*/\1/p' \
+    "$REPO_ROOT"/lib/*.sh "$REPO_ROOT"/extensions/*.sh \
+    | LC_ALL=C sort >"$source_names"
+  # shellcheck disable=SC2016 # literal Markdown backticks, not shell substitution
+  sed -nE 's/^#### `((lib|ext)::[a-zA-Z0-9_:]+)`$/\1/p' \
+    "$REPO_ROOT/docs/API.md" | LC_ALL=C sort >"$documented_names"
+
+  run diff -u "$source_names" "$documented_names"
+  assert_success
+}

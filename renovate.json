@@ -5,7 +5,7 @@
     "helpers:pinGitHubActionDigests",
     ":enablePreCommit"
   ],
-  "gitSubmodules": {
+  "git-submodules": {
     "enabled": true
   },
   "assignees": ["MVProwess"]

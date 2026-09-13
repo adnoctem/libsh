@@ -1,7 +1,8 @@
 # shellcheck shell=bash
-#######################################
-#
+
 # Array membership, scalar references and exact byte conversion.
+
+#######################################
 # Determine if an array is empty
 # Globals:
 #   None

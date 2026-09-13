@@ -1,0 +1,6 @@
+{
+  "Exclude": ["(^|/)(test/bats|secrets|dist)/"],
+  "Disable": {
+    "Indentation": true
+  }
+}

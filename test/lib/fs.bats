@@ -493,3 +493,23 @@ setup() {
   run lib::fs::owner_set -file 123
   assert_failure 1
 }
+
+@test "editing supports BSD readlink without requesting zero bytes from head" {
+  readlink() {
+    [[ $1 == -n ]] || return 1
+    command readlink "$@"
+  }
+  head() {
+    [[ $1 != -c || $2 != 0 ]] || return 1
+    command head "$@"
+  }
+
+  local target="$TEST_TMP/"$'target\n'
+  printf 'old\n' >"$target"
+  ln -s "$target" "$TEST_TMP/link"
+  run lib::fs::file_replace_content "$TEST_TMP/link" old new
+  assert_success
+  run lib::fs::file_remove_content "$TEST_TMP/link" new
+  assert_success
+  [[ ! -s $target ]]
+}

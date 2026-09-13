@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
-  REPO_ROOT=$(git rev-parse --show-toplevel)
+  REPO_ROOT=${REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}
 
   load "$REPO_ROOT/test/bats/plugins/bats-support/load"
   load "$REPO_ROOT/test/bats/plugins/bats-assert/load"
@@ -94,4 +94,28 @@ teardown() {
   run ext::py::venv
 
   assert_failure 4
+}
+
+@test "venv accepts an explicit path and creation interpreter" {
+  # shellcheck disable=SC2329 # creation fixture
+  custom_python() {
+    [[ $1 == -m && $2 == venv && $3 == "$TEST_TMP/custom env" ]] || return 9
+    mkdir -p "$3/bin"
+    printf 'LIBSH_CUSTOM_VENV=activated\n' >"$3/bin/activate"
+  }
+  ext::py::venv "$TEST_TMP/custom env" --python custom_python
+  assert_equal "${LIBSH_CUSTOM_VENV:-}" activated
+}
+
+@test "venv refuses incomplete existing paths and reports activation failure" {
+  mkdir "$TEST_TMP/incomplete"
+  run ext::py::venv "$TEST_TMP/incomplete"
+  assert_failure 1
+  [[ ! -e $TEST_TMP/incomplete/bin ]]
+  mkdir -p "$TEST_TMP/incomplete/bin"
+  printf 'return 7\n' >"$TEST_TMP/incomplete/bin/activate"
+  run ext::py::venv "$TEST_TMP/incomplete"
+  assert_failure 7
+  run ext::py::venv "$TEST_TMP/new" --python ''
+  assert_failure 2
 }

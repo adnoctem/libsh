@@ -285,3 +285,73 @@ teardown() {
   assert_success
   assert_output --partial survived
 }
+
+@test "secret generation uses exact alphabets lengths and no stdout" {
+  local generated='' alphabet
+  for alphabet in alphanumeric numeric ascii ASCII; do
+    ext::secret::generate generated -t "$alphabet" -l 128
+    [[ ${#generated} == 128 ]]
+    case $alphabet in
+      alphanumeric) [[ $generated != *[!a-zA-Z0-9]* ]] ;;
+      numeric) [[ $generated != *[!0-9]* ]] ;;
+      *) [[ $generated != *[!\ -\~]* ]] ;;
+    esac
+  done
+  run ext::secret::generate generated
+  assert_success
+  assert_output ''
+}
+
+@test "secret rejection sampling discards biased bytes and preserves spaces" {
+  # shellcheck disable=SC2329 # deterministic entropy fixture
+  od() { printf '255 250 249 0 1 2\n'; }
+  local generated=before
+  ext::secret::generate generated --type numeric --length 3
+  assert_equal "$generated" 901
+  # shellcheck disable=SC2329
+  od() { printf '190 189 0\n'; }
+  ext::secret::generate generated --type ascii --length 2
+  assert_equal "$generated" '~ '
+}
+
+@test "secret failures leave caller values untouched and terminate bad sources" {
+  local generated=before
+  # shellcheck disable=SC2329 # failed entropy source
+  od() {
+    printf '1 2\n'
+    return 1
+  }
+  ext::secret::generate generated && return 1
+  assert_equal "$generated" before
+  # shellcheck disable=SC2329
+  od() { printf '255\n'; }
+  ext::secret::generate generated -t numeric -l 1 && return 1
+  assert_equal "$generated" before
+  # shellcheck disable=SC2329
+  od() { printf ' \n'; }
+  ext::secret::generate generated && return 1
+  assert_equal "$generated" before
+  run ext::secret::generate generated --length 0
+  assert_failure 2
+  run ext::secret::generate generated --type invalid
+  assert_failure 2
+  run ext::secret::generate PATH
+  assert_failure 2
+}
+
+@test "secret generation preserves strict caller state and nonstandard IFS" {
+  run bash -c '
+    source "$1/lib/lib.sh"
+    lib::load_extensions secret
+    set -euo pipefail
+    IFS=:
+    result=before
+    before=$(set +o; declare -p IFS; umask)
+    ext::secret::generate result --type numeric --length 32
+    [[ ${#result} == 32 && $result != *[!0-9]* ]]
+    after=$(set +o; declare -p IFS; umask)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT"
+  assert_success
+  assert_output ''
+}

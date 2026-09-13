@@ -372,6 +372,9 @@ review.
   Reserve `__libsh_` for library internals, including private helper names and internal variables.
 - Extension private helpers use `__libsh_ext_<name>_<function>`.
 - Ship a matching `test/lib/<module>.bats` for core or `test/extensions/<name>.bats` for an extension
+- Update [API.md](API.md) alongside public behavior changes. Every public function needs one reference entry,
+  with arguments, output/return behavior, dependencies, side effects and supported platforms. The coverage check
+  in `test/lib/libsh.bats` rejects missing, duplicate and stale entries.
 - Write errors with `lib::log::red`, which goes to stderr; progress output goes to stdout
 
 ### Shell readability and function comments

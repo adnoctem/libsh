@@ -1,7 +1,7 @@
 # ref: https://github.com/pre-commit/pre-commit/issues/1930
 # default_language_version:
 #   ruby: 3.2.1
-exclude: ^test/bats/.*
+exclude: ^(test/bats/|secrets/|dist/|CHANGELOG\.md$)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

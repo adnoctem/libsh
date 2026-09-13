@@ -306,7 +306,7 @@ lint: tools-check markdownlint actionlint shellcheck shfmt gitleaks
 
 .PHONY: markdownlint
 markdownlint:
-	@markdownlint -c $(MARKDOWNLINT_CONFIG) '**/*.md' -i 'test/**/*' -i 'secrets/**/*'
+	@markdownlint -c $(MARKDOWNLINT_CONFIG) '**/*.md' -i 'test/**/*' -i 'secrets/**/*' -i 'CHANGELOG.md'
 
 .PHONY: actionlint
 actionlint:

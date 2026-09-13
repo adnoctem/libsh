@@ -529,9 +529,8 @@ function __libsh_fs_edit_target() (
       return 1
     fi
 
-    target=$(readlink "$path" && printf '.') || return 1
+    target=$(readlink -n "$path" && printf '.') || return 1
     path=${target%.}
-    path=${path%$'\n'}
     count=$((count + 1))
   done
 
@@ -730,7 +729,11 @@ function __libsh_fs_edit_transform() {
     size=$((size - 1))
   fi
 
-  head -c "$size" "$work/edited" >"$work/result" || return 1
+  if [[ $size == 0 ]]; then
+    : >"$work/result" || return 1
+  else
+    head -c "$size" "$work/edited" >"$work/result" || return 1
+  fi
 }
 
 #######################################

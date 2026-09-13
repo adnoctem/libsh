@@ -1,0 +1,11 @@
+{
+  "threshold": 7,
+  "mode": "weak",
+  "ignore": [
+    "**/test/**",
+    "**/secrets/**",
+    "**/dist/**",
+    "**/docs/**",
+    "**/*.md"
+  ]
+}

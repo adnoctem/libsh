@@ -1,0 +1,5 @@
+misconfigurations:
+  - id: DS-0026
+    paths:
+      - test/container/Dockerfile
+    statement: This image runs a finite test suite, not a service.
