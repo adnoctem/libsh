@@ -15,7 +15,7 @@ COPY test/container/install.sh test/container/install.sh
 RUN bash test/container/install.sh
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd \
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /opt/bash-4.0 /opt/bash-4.0
 COPY --from=build /usr/local/lib/libsh.libman /usr/local/lib/libsh.libman

@@ -775,35 +775,321 @@ install_fake_darwin_tools() {
   assert_output "ff02::1:ffa7:c0f1"
 }
 
-# --- is_ipv4 / is_ipv6 (pure validation, table-driven) --------------------
+# --- ipv4_validate / ipv6_validate (pure validation, table-driven) --------------------
 
-@test "lib::net::is_ipv4 accepts valid addresses" {
+@test "lib::net::ipv4_validate accepts valid addresses" {
   for addr in "192.168.1.1" "0.0.0.0" "255.255.255.255" "1.2.3.4" "10.0.0.1"; do
-    run lib::net::is_ipv4 "$addr"
+    run lib::net::ipv4_validate "$addr"
     assert_success
   done
 }
 
-@test "lib::net::is_ipv4 rejects invalid addresses" {
+@test "lib::net::ipv4_validate rejects invalid addresses" {
   for addr in "256.1.1.1" "1.1.1" "1.1.1.1.1" "01.1.1.1" "1.2.3.4." ".1.2.3.4" \
     "1.2.3.abc" "" "1..2.3" "-1.2.3.4" "1.2.3.4 "; do
-    run lib::net::is_ipv4 "$addr"
+    run lib::net::ipv4_validate "$addr"
     assert_failure
   done
 }
 
-@test "lib::net::is_ipv6 accepts valid addresses" {
+@test "lib::net::ipv6_validate accepts valid addresses" {
   for addr in "2001:db8::1" "::1" "::" "fe80::1234:5678:9abc:def0" \
     "1:2:3:4:5:6:7:8" "::ffff:192.168.1.1" "2001:db8:0:0:0:0:0:1"; do
-    run lib::net::is_ipv6 "$addr"
+    run lib::net::ipv6_validate "$addr"
     assert_success
   done
 }
 
-@test "lib::net::is_ipv6 rejects invalid addresses" {
+@test "lib::net::ipv6_validate rejects invalid addresses" {
   for addr in "1:2:3:4:5:6:7:8:9" "2001:db8:::1" "2001:db8::1::2" "gggg::1" \
     "12345::1" "::ffff:999.168.1.1" "" "1:2:3:4:5:6:7" "fe80::1%eth0"; do
-    run lib::net::is_ipv6 "$addr"
+    run lib::net::ipv6_validate "$addr"
     assert_failure
   done
+}
+
+@test "IP validators reject overflow trailing lines and malformed IPv4 tails" {
+  local address
+  for address in '18446744073709551617.2.3.4' $'1.2.3.4\nextra' $'1.2.3.4\n' \
+    '1:2:3:4:5:6:7:192.0.2.1' '1:2:3:4:5:6::192.0.2.1' $'::1\nextra' ':::'; do
+    run lib::net::ip_validate "$address"
+    assert_failure 1
+    assert_output ''
+  done
+
+  for address in '1:2:3:4:5:6:192.0.2.1' '::192.0.2.1' '::' '192.0.2.1'; do
+    run lib::net::ip_validate "$address"
+    assert_success
+    assert_output ''
+  done
+}
+
+@test "validators have consistent argument and service port rules under strict mode" {
+  local fn port
+  for fn in ipv4_validate ipv6_validate ip_validate port_validate uri_validate dsn_validate; do
+    run "lib::net::$fn"
+    assert_failure 2
+    run "lib::net::$fn" one two
+    assert_failure 2
+  done
+  for port in 1 65535 00080; do
+    run lib::net::port_validate "$port"
+    assert_success
+  done
+  for port in 0 0000 65536 -1 +80 1.0 '' '1+2' 18446744073709551617; do
+    run lib::net::port_validate "$port"
+    assert_failure 1
+    assert_output ''
+  done
+
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    lib::net::ipv6_validate ::
+    lib::net::ipv6_validate ::ffff:192.0.2.1
+    lib::net::ip_validate 192.0.2.1
+    lib::net::port_validate 00080
+  ' _ "$REPO_ROOT"
+  assert_success
+}
+
+@test "URI parsing preserves encoded components and IPv6 host text" {
+  local uri='Postgres://user%40name:p%3Ass@[2001:db8::1]:005432/db%2Fname?k=a%26b#part%20one'
+  local component
+  local -A expected=(
+    [scheme]=Postgres [authority]='user%40name:p%3Ass@[2001:db8::1]:005432'
+    [userinfo]='user%40name:p%3Ass' [username]='user%40name' [password]='p%3Ass'
+    [host]='2001:db8::1' [port]=005432 [path]='/db%2Fname' [query]='k=a%26b' [fragment]='part%20one'
+  )
+  for component in scheme authority userinfo username password host port path query fragment; do
+    run lib::net::uri_parse "$uri" "$component"
+    assert_success
+    assert_output "${expected[$component]}"
+  done
+}
+
+@test "URI validation supports opaque and empty components without imposing service grammar" {
+  local uri
+  for uri in 'urn:example:animal:ferret:nose' 'mailto:user@example.com' 'file:///tmp/a' \
+    'scheme:' 'https://host:/' 'https://host:999999/' 'custom://encoded%2Ehost/a?x=?/#'; do
+    run lib::net::uri_validate "$uri"
+    assert_success
+    assert_output ''
+  done
+  run lib::net::uri_parse 'file:///tmp/a' host
+  assert_success
+  assert_output ''
+  run lib::net::uri_parse 'urn:example:animal' path
+  assert_output 'example:animal'
+  run lib::net::uri_parse 'https://host' missing
+  assert_failure 2
+}
+
+@test "URI validation rejects illegal bytes malformed authorities and escapes" {
+  local uri
+  for uri in '/relative' '//host/path' '1scheme:foo' 'https://a b/' 'https://host/%2' \
+    'https://host/%xz' 'https://host/a#b#c' 'https://host/"' "https://host/\\" \
+    'https://user@other@host/' 'https://[::1]extra/' 'https://::1/' \
+    'https://[v1.test]/' 'https://[fe80::1%25eth0]/' $'https://host/\n' 'https://host/é'; do
+    run lib::net::uri_validate "$uri"
+    assert_failure 1
+    assert_output ''
+  done
+}
+
+@test "DSN parser requires a single service host and preserves absent defaults" {
+  local dsn
+  for dsn in 'mysql://user:p%40ss@db.example:3306/db' 'redis://[::1]/0' 'amqp://host' \
+    'postgresql://host:0005432/database?sslmode=require'; do
+    run lib::net::dsn_validate "$dsn"
+    assert_success
+  done
+  run lib::net::dsn_parse 'redis://host/0' port
+  assert_success
+  assert_output ''
+  run lib::net::dsn_parse 'mysql://user:p%40ss@host/db' password
+  assert_output 'p%40ss'
+
+  for dsn in 'host=localhost dbname=test' 'mysql:host=localhost' 'postgres://one,two/db' \
+    'redis:///socket' 'redis://host:0' 'redis://host:' 'redis://host:65536' \
+    'redis://host/db#fragment' 'redis://256.1.1.1' 'redis://host%2Eexample'; do
+    run lib::net::dsn_validate "$dsn"
+    assert_failure 1
+  done
+}
+
+@test "URI parsing preserves caller state and keeps secrets out of diagnostics" {
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    uri="mysql://user:private-value@host:3306/db"
+    before=$(set +o; declare -p uri; pwd; umask)
+    [[ $(lib::net::dsn_parse "$uri" host) == host ]]
+    lib::net::uri_validate "$uri"
+    after=$(set +o; declare -p uri; pwd; umask)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT"
+  assert_success
+  run lib::net::uri_parse 'mysql://user:private-value@host/%bad%' host
+  assert_failure 1
+  [[ $output != *private-value* ]]
+}
+
+@test "DNS lookup prefers getent and deduplicates address records" {
+  # shellcheck disable=SC2329 # called by dns_lookup
+  getent() {
+    [[ $1 == ahosts && $2 == db.example ]] || return 9
+    printf '%s\n' '192.0.2.1 STREAM db.example' '192.0.2.1 DGRAM' '192.0.2.1 RAW' '2001:db8::1 STREAM'
+  }
+  run lib::net::dns_lookup db.example
+  assert_success
+  assert_output $'192.0.2.1\n2001:db8::1'
+}
+
+@test "DNS fallback excludes the resolver server address from nslookup output" {
+  # shellcheck disable=SC2329 # availability fixture
+  command() {
+    [[ $1 != -v || $2 != getent ]] || return 1
+    builtin command "$@"
+  }
+  # shellcheck disable=SC2329 # called by dns_lookup
+  nslookup() {
+    printf '%s\n' 'Server: 192.0.2.53' 'Address: 192.0.2.53#53' '' \
+      'Non-authoritative answer:' 'Name: db.example' 'Address: 192.0.2.1' \
+      'Name: db.example' 'Address: 2001:db8::1'
+  }
+  run lib::net::dns_lookup db.example
+  assert_success
+  assert_output $'192.0.2.1\n2001:db8::1'
+}
+
+@test "DNS lookup reports missing tools failed resolution and empty results" {
+  # shellcheck disable=SC2329 # called by dns_lookup
+  getent() {
+    printf 'partial output\n'
+    return 2
+  }
+  run lib::net::dns_lookup missing.example
+  assert_failure 1
+  [[ $output != *partial* ]]
+
+  # shellcheck disable=SC2329
+  getent() { printf 'not-an-address STREAM\n'; }
+  run lib::net::dns_lookup missing.example
+  assert_failure 1
+  run lib::net::dns_lookup --help
+  assert_failure 2
+  run lib::net::dns_lookup
+  assert_failure 2
+
+  # shellcheck disable=SC2329 # availability fixture
+  command() {
+    [[ $1 != -v || ($2 != getent && $2 != nslookup) ]] || return 1
+    builtin command "$@"
+  }
+  run lib::net::dns_lookup db.example
+  assert_failure 1
+}
+
+@test "HTTP probe uses bounded verified GET defaults and hides URL from curl arguments" {
+  # shellcheck disable=SC2329 # called by http_probe
+  curl() {
+    [[ $1 == --disable ]] || return 9
+    [[ " $* " == *' --max-time 10 '* && " $* " == *' --connect-timeout 10 '* ]] || return 9
+    [[ " $* " != *' --location '* && " $* " != *' --insecure '* && " $* " != *' --head '* ]] || return 9
+    [[ " $* " != *private-value* && " $* " == *' --config - '* ]] || return 9
+    local config
+    IFS= read -r config
+    [[ $config == 'url = "https://user:private-value@host/path"' ]] || return 9
+    printf 204
+  }
+  run lib::net::http_probe 'https://user:private-value@host/path'
+  assert_success
+  assert_output 204
+}
+
+@test "HTTP probe supports redirect flags and a total timeout without HTTPS downgrade" {
+  # shellcheck disable=SC2329 # called by http_probe
+  curl() {
+    [[ " $* " == *' --location '* && " $* " == *' --max-redirs 5 '* ]] || return 9
+    [[ " $* " == *' --max-time 7 '* && " $* " == *' --proto-redir =https '* ]] || return 9
+    printf 200
+  }
+  local flag
+  for flag in -f --follow-redirects; do
+    run lib::net::http_probe https://host --timeout 7 "$flag"
+    assert_success
+    assert_output 200
+  done
+}
+
+@test "HTTP rejection transport errors and invalid invocations are distinguishable" {
+  # shellcheck disable=SC2329 # called by http_probe
+  curl() { printf 404; }
+  run lib::net::http_probe https://host
+  assert_failure 1
+  assert_output 404
+
+  # shellcheck disable=SC2329
+  curl() { printf 302; }
+  run lib::net::http_probe https://host
+  assert_failure 1
+  assert_output 302
+
+  # shellcheck disable=SC2329
+  curl() {
+    printf 200
+    printf 'private-value' >&2
+    return 28
+  }
+  run lib::net::http_probe https://host
+  assert_failure 3
+  [[ $output != *200* && $output != *private-value* ]]
+
+  run lib::net::http_probe https://host --timeout 0
+  assert_failure 2
+  run lib::net::http_probe ftp://host
+  assert_failure 2
+  run lib::net::http_probe $'https://host/\nurl = "file:///etc/passwd"'
+  assert_failure 2
+  run lib::net::http_probe https://host --unknown
+  assert_failure 2
+}
+
+@test "HTTP probe preserves caller parser arrays and strict shell settings" {
+  run bash -c '
+    source "$1/lib/lib.sh"
+    set -euo pipefail
+    curl() { printf 200; }
+    declare -a OPTS=(caller)
+    declare -A OPTS_HELP=([caller]=help) OPTS_VALUES=([caller]=value)
+    before=$(set +o; declare -p OPTS OPTS_HELP OPTS_VALUES; pwd; umask)
+    lib::net::http_probe https://host
+    after=$(set +o; declare -p OPTS OPTS_HELP OPTS_VALUES; pwd; umask)
+    [[ $before == "$after" ]]
+  ' _ "$REPO_ROOT"
+  assert_success
+  assert_output 200
+}
+
+@test "HTTP probe allows URL fragments and distinguishes missing tools or malformed responses" {
+  # shellcheck disable=SC2329 # called by http_probe
+  curl() { printf 200; }
+  run lib::net::http_probe 'http://host/path#fragment'
+  assert_success
+  assert_output 200
+
+  # shellcheck disable=SC2329
+  curl() { printf 000; }
+  run lib::net::http_probe http://host
+  assert_failure 3
+  [[ $output != *000* ]]
+
+  # shellcheck disable=SC2329 # availability fixture
+  command() {
+    [[ $1 != -v || $2 != curl ]] || return 1
+    builtin command "$@"
+  }
+  run lib::net::http_probe http://host
+  assert_failure 3
 }

@@ -1,14 +1,6 @@
 # shellcheck shell=bash
 
-# Block until a TCP endpoint accepts connections, or fail after a bounded
-# number of retries -- the actual mechanism duplicated six times across
-# shopware-main's docker/lib/libcheck.sh (database_connection_check,
-# opensearch_connection_check, redis_connection_check,
-# redis_cache_connection_check, redis_session_connection_check,
-# rabbitmq_connection_check). All six were the identical loop
-# (nc -z, sleep 1, bounded retries, fatal exit) around a different DSN var
-# and a different human label. This collapses that into one primitive plus
-# one thin convenience wrapper.
+# Network inspection, address validation, URI parsing and connection probes.
 
 #######################################
 # Block until 'host:port' accepts a TCP connection, retrying on a fixed
@@ -116,11 +108,11 @@ function __libsh_net_endpoint_ipv6() {
   local __libsh_ip_count=0 __libsh_ip_compressed=0
   local -a __libsh_ip_groups=()
 
-  [[ $__libsh_ip == *:* && $__libsh_ip != *:::* ]] || return 2
+  [[ $__libsh_ip =~ ^[a-fA-F0-9:.]+$ && $__libsh_ip == *:* && $__libsh_ip != *:::* ]] || return 2
 
   if [[ $__libsh_ip == *.* ]]; then
     __libsh_ip_tail=${__libsh_ip##*:}
-    lib::net::is_ipv4 "$__libsh_ip_tail" || return 2
+    lib::net::ipv4_validate "$__libsh_ip_tail" || return 2
     __libsh_ip=${__libsh_ip%:*}:0:0
   fi
 
@@ -175,7 +167,7 @@ function __libsh_net_endpoint_host() {
   fi
 
   if [[ $__libsh_host =~ ^[0-9.]+$ && $__libsh_host == *.* ]]; then
-    lib::net::is_ipv4 "$__libsh_host" || return 2
+    lib::net::ipv4_validate "$__libsh_host" || return 2
     return 0
   fi
 
@@ -755,7 +747,7 @@ function lib::net::multicast_address() {
 #######################################
 # Check whether a string is a valid IPv4 address per RFC 791: four
 # dot-separated decimal octets, each 0-255, no leading zeros. Arithmetic
-# decomposition, no regex.
+# decomposition with bounded decimal octets.
 # Globals:
 #   None
 # Arguments:
@@ -763,21 +755,23 @@ function lib::net::multicast_address() {
 # Outputs:
 #   None
 # Returns:
-#   0 if valid, 1 otherwise.
+#   0 valid, 1 invalid, 2 incorrect argument count.
 #######################################
-function lib::net::is_ipv4() {
-  local address=${1:-}
+function lib::net::ipv4_validate() {
+  [[ $# == 1 ]] || return 2
+
+  local LC_ALL=C address=$1
   local -a octets
   local octet
 
-  [[ -z $address ]] && return 1
+  [[ $address =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
   [[ $address == .* || $address == *. ]] && return 1
 
   IFS='.' read -ra octets <<<"$address"
   [[ ${#octets[@]} -eq 4 ]] || return 1
 
   for octet in "${octets[@]}"; do
-    [[ -n $octet ]] || return 1
+    [[ ${#octet} -le 3 ]] || return 1
     [[ $octet =~ ^[0-9]+$ ]] || return 1
     if [[ ${#octet} -gt 1 && ${octet:0:1} == "0" ]]; then
       return 1
@@ -789,66 +783,53 @@ function lib::net::is_ipv4() {
 }
 
 #######################################
-# Check whether a string is a valid IPv6 address per RFC 4291: full form,
-# '::' compression (at most once), and IPv4-mapped addresses
-# (::ffff:x.x.x.x, whose embedded IPv4 portion is delegated to is_ipv4).
-# Structural decomposition, no regex for the address as a whole.
+# Validate an unbracketed IPv6 address, including embedded IPv4 tails.
+# Zone identifiers and CIDR suffixes are not accepted.
 # Globals:
 #   None
 # Arguments:
-#   1 - The string to validate
+#   1 - Address
 # Outputs:
 #   None
 # Returns:
-#   0 if valid, 1 otherwise.
+#   0 valid, 1 invalid, 2 incorrect argument count.
 #######################################
-function lib::net::is_ipv6() {
-  local address=${1:-}
-  local last_segment left right double_colon_count group
-  local -a explicit left_groups right_groups
+function lib::net::ipv6_validate() {
+  [[ $# == 1 ]] || return 2
+  __libsh_net_endpoint_ipv6 "$1" || return 1
+}
 
-  [[ -z $address ]] && return 1
+#######################################
+# Validate either an IPv4 or an unbracketed IPv6 address.
+# Globals:
+#   None
+# Arguments:
+#   1 - Address, without CIDR suffix or zone identifier
+# Outputs:
+#   None
+# Returns:
+#   0 valid, 1 invalid, 2 incorrect argument count.
+#######################################
+function lib::net::ip_validate() {
+  [[ $# == 1 ]] || return 2
+  lib::net::ipv4_validate "$1" || lib::net::ipv6_validate "$1"
+}
 
-  # Delegate the embedded IPv4 portion of a mapped address, e.g.
-  # ::ffff:192.168.1.1, to is_ipv4, then treat it as a placeholder hex
-  # group for the rest of this validation.
-  if [[ $address == *:* ]]; then
-    last_segment=${address##*:}
-    if [[ $last_segment == *.* ]]; then
-      lib::net::is_ipv4 "$last_segment" || return 1
-      address="${address%:*}:0"
-    fi
-  fi
-
-  # '::' must appear at most once. Non-overlapping match count, matching
-  # how .NET's IndexOf-based scan in the PSFoundation original treats a
-  # run of 3+ colons.
-  double_colon_count=$(grep -o '::' <<<"$address" | wc -l)
-  [[ $double_colon_count -gt 1 ]] && return 1
-
-  if [[ $double_colon_count -eq 1 ]]; then
-    left="${address%%::*}"
-    right="${address#*::}"
-
-    left_groups=()
-    [[ -n $left ]] && IFS=':' read -ra left_groups <<<"$left"
-    right_groups=()
-    [[ -n $right ]] && IFS=':' read -ra right_groups <<<"$right"
-
-    explicit=("${left_groups[@]}" "${right_groups[@]}")
-    [[ ${#explicit[@]} -gt 7 ]] && return 1
-  else
-    IFS=':' read -ra explicit <<<"$address"
-    [[ ${#explicit[@]} -eq 8 ]] || return 1
-  fi
-
-  for group in "${explicit[@]}"; do
-    [[ ${#group} -ge 1 && ${#group} -le 4 ]] || return 1
-    [[ $group =~ ^[0-9a-fA-F]+$ ]] || return 1
-    ((16#$group <= 0xFFFF)) || return 1
-  done
-
-  return 0
+#######################################
+# Validate a decimal remote service port; leading zeros are accepted.
+# Port zero is reserved for local automatic allocation and is rejected here.
+# Globals:
+#   None
+# Arguments:
+#   1 - Port in the range 1 through 65535
+# Outputs:
+#   None
+# Returns:
+#   0 valid, 1 invalid, 2 incorrect argument count.
+#######################################
+function lib::net::port_validate() {
+  [[ $# == 1 ]] || return 2
+  __libsh_net_decimal "$1" 65535 1 >/dev/null || return 1
 }
 
 # --- Internal helpers ---------------------------------------------------
@@ -1196,4 +1177,383 @@ function __libsh_net_ipv6_hex_to_string() {
     local all_str="${groups[*]}"
     printf '%s' "${all_str// /:}"
   fi
+}
+
+#######################################
+# Validate encoded URI component characters without decoding them.
+# Globals:
+#   None
+# Arguments:
+#   1 - Component text
+#   2 - Additional allowed characters (trusted expression suffix)
+# Outputs:
+#   None
+# Returns:
+#   0 valid, 1 invalid characters or percent escapes.
+#######################################
+function __libsh_net_uri_component() {
+  local LC_ALL=C text=$1 allowed="^[a-zA-Z0-9._~!\$&'()*+,;=%$2-]*$"
+  [[ $text =~ $allowed ]] || return 1
+
+  while [[ $text == *%* ]]; do
+    text=${text#*%}
+    [[ $text =~ ^[a-fA-F0-9]{2} ]] || return 1
+    text=${text:2}
+  done
+}
+
+#######################################
+# Split an absolute URI and validate its generic component grammar.
+# Uses RFC 3986 syntax, excluding IPvFuture and scoped IPv6 literals.
+# Globals:
+#   __libsh_net_uri (caller-local associative array, written)
+# Arguments:
+#   1 - URI value
+#   2 - uri, dsn or http; the latter two require one DNS/IP service host
+# Outputs:
+#   None; components stay encoded in the caller-local array.
+# Returns:
+#   0 valid, 1 malformed or unsupported URI.
+#######################################
+function __libsh_net_uri_split() {
+  local LC_ALL=C rest=$1 authority='' host='' port='' userinfo='' tail
+  local has_authority=0 has_userinfo=0 has_port=0 has_fragment=0
+  __libsh_net_uri=()
+
+  [[ $rest =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]] || return 1
+  __libsh_net_uri[scheme]=${rest%%:*}
+  rest=${rest#*:}
+  __libsh_net_uri[fragment]=''
+  if [[ $rest == *'#'* ]]; then
+    has_fragment=1
+    __libsh_net_uri[fragment]=${rest#*#}
+    rest=${rest%%#*}
+  fi
+
+  __libsh_net_uri[query]=''
+  if [[ $rest == *'?'* ]]; then
+    __libsh_net_uri[query]=${rest#*\?}
+    rest=${rest%%\?*}
+  fi
+  __libsh_net_uri_component "${__libsh_net_uri[fragment]}" ':@/?' || return 1
+  __libsh_net_uri_component "${__libsh_net_uri[query]}" ':@/?' || return 1
+
+  if [[ $rest == //* ]]; then
+    has_authority=1
+    rest=${rest#//}
+    authority=${rest%%/*}
+    rest=${rest#"$authority"}
+    tail=$authority
+
+    if [[ $tail == *@* ]]; then
+      has_userinfo=1
+      userinfo=${tail%%@*}
+      tail=${tail#*@}
+      __libsh_net_uri_component "$userinfo" ':' || return 1
+    fi
+
+    if [[ $tail == \[* ]]; then
+      host=${tail#\[}
+      host=${host%%\]*}
+      [[ $tail == *\]* ]] || return 1
+      lib::net::ipv6_validate "$host" || return 1
+      tail=${tail#*\]}
+    else
+      host=${tail%%:*}
+      tail=${tail#"$host"}
+      __libsh_net_uri_component "$host" '' || return 1
+    fi
+
+    if [[ -n $tail ]]; then
+      [[ $tail == :* ]] || return 1
+      has_port=1
+      port=${tail#:}
+      [[ -z $port || $port =~ ^[0-9]+$ ]] || return 1
+    fi
+  fi
+
+  __libsh_net_uri_component "$rest" ':@/' || return 1
+  if [[ $2 != uri ]]; then
+    [[ $has_authority == 1 ]] || return 1
+    [[ $2 != dsn || $has_fragment == 0 ]] || return 1
+    __libsh_net_endpoint_host "$host" || return 1
+    if [[ $has_port == 1 ]]; then
+      lib::net::port_validate "$port" || return 1
+    fi
+  fi
+
+  __libsh_net_uri[authority]=$authority
+  __libsh_net_uri[userinfo]=$userinfo
+  __libsh_net_uri[username]=${userinfo%%:*}
+  __libsh_net_uri[password]=''
+  if [[ $userinfo == *:* ]]; then
+    __libsh_net_uri[password]=${userinfo#*:}
+  fi
+  __libsh_net_uri[host]=$host
+  __libsh_net_uri[port]=$port
+  __libsh_net_uri[path]=$rest
+  __libsh_net_uri[has_authority]=$has_authority
+  __libsh_net_uri[has_userinfo]=$has_userinfo
+  __libsh_net_uri[has_port]=$has_port
+  __libsh_net_uri[has_fragment]=$has_fragment
+}
+
+#######################################
+# Validate an absolute URI without resolving or decoding it.
+# Accepts hierarchical and opaque URIs. IPvFuture/scoped IPv6 are unsupported.
+# Generic URI ports may be empty or arbitrary decimal digits; use dsn_validate
+# for a usable service endpoint. Relative references are not absolute URIs.
+# Globals:
+#   None
+# Arguments:
+#   1 - URI value
+# Outputs:
+#   None
+# Returns:
+#   0 valid, 1 invalid, 2 incorrect argument count.
+#######################################
+function lib::net::uri_validate() {
+  [[ $# == 1 ]] || return 2
+  local -A __libsh_net_uri=()
+
+  __libsh_net_uri_split "$1" uri
+}
+
+#######################################
+# Parse one encoded component from an absolute URI.
+# No decoding or normalization is performed; bracketed IPv6 hosts lose only
+# their brackets. Absent and explicitly empty components both produce empty
+# output. Input never reaches external command arguments or diagnostics.
+# Globals:
+#   None
+# Arguments:
+#   1 - URI value
+#   2 - scheme, authority, userinfo, username, password, host, port, path,
+#       query or fragment
+# Outputs:
+#   Requested component without an added newline; sanitized errors to stderr.
+# Returns:
+#   0 success, 1 invalid URI, 2 invalid invocation/component selector.
+#######################################
+function lib::net::uri_parse() {
+  [[ $# == 2 ]] || return 2
+  __libsh_net_uri_parse "$1" "$2" uri
+}
+
+#######################################
+# Validate a single-host connection URI, without scheme-specific defaults.
+# Requires a DNS/IP host, optional service port 1..65535, and no fragment.
+# Driver keyword strings, socket paths and multi-host authorities are rejected.
+# Globals:
+#   None
+# Arguments:
+#   1 - DSN value
+# Outputs:
+#   None
+# Returns:
+#   0 valid, 1 invalid, 2 incorrect argument count.
+#######################################
+function lib::net::dsn_validate() {
+  [[ $# == 1 ]] || return 2
+  local -A __libsh_net_uri=()
+
+  __libsh_net_uri_split "$1" dsn
+}
+
+#######################################
+# Parse an encoded component from a single-host connection URI.
+# Uses the same selectors/output rules as uri_parse and grammar as dsn_validate.
+# For secret-bearing endpoint extraction into variables, use endpoint_from_uri.
+# Globals:
+#   None
+# Arguments:
+#   1 - DSN value
+#   2 - Component selector accepted by uri_parse
+# Outputs:
+#   Component without an added newline; sanitized errors to stderr.
+# Returns:
+#   0 success, 1 invalid DSN, 2 invalid invocation/component selector.
+#######################################
+function lib::net::dsn_parse() {
+  [[ $# == 2 ]] || return 2
+  __libsh_net_uri_parse "$1" "$2" dsn
+}
+
+#######################################
+# Select a public URI component after validating the entire input.
+# Globals:
+#   None
+# Arguments:
+#   1 - URI value
+#   2 - Component selector
+#   3 - uri or dsn validation profile
+# Outputs:
+#   Component without a newline; sanitized errors to stderr.
+# Returns:
+#   0 success, 1 invalid URI, 2 unsupported selector.
+#######################################
+function __libsh_net_uri_parse() {
+  local -A __libsh_net_uri=()
+  case $2 in
+    scheme | authority | userinfo | username | password | host | port | path | query | fragment) ;;
+    *)
+      lib::log::red 'Unsupported URI component selector.'
+      return 2
+      ;;
+  esac
+
+  if ! __libsh_net_uri_split "$1" "$3"; then
+    lib::log::red 'Invalid or unsupported connection URI.'
+    return 1
+  fi
+
+  printf '%s' "${__libsh_net_uri[$2]}"
+}
+
+#######################################
+# Look up a hostname with getent, or nslookup when getent is unavailable.
+# Pass a hostname, not a URI/DSN; parsing belongs to the caller. getent uses
+# the system name-service configuration, while nslookup queries DNS directly.
+# Resolver timeouts follow system/tool defaults.
+# Globals:
+#   PATH (read)
+# Arguments:
+#   1 - Hostname
+# Outputs:
+#   Unique IP addresses, one per line; sanitized errors to stderr.
+# Returns:
+#   0 addresses found, 1 missing resolver/lookup failure, 2 invalid invocation.
+# Dependencies:
+#   getent or nslookup, checked only at invocation.
+#######################################
+function lib::net::dns_lookup() {
+  if [[ $# != 1 || -z ${1:-} || $1 == -* || $1 == *[[:space:][:cntrl:]]* ]]; then
+    lib::log::red 'dns_lookup requires one hostname.'
+    return 2
+  fi
+
+  local response backend line address _ in_answer=0 output='' seen=$'\n'
+  if command -v getent >/dev/null 2>&1; then
+    backend=getent
+    response=$(getent ahosts "$1" 2>/dev/null) || {
+      lib::log::red 'Hostname lookup failed.'
+      return 1
+    }
+  elif command -v nslookup >/dev/null 2>&1; then
+    backend=nslookup
+    response=$(nslookup "$1" 2>/dev/null) || {
+      lib::log::red 'Hostname lookup failed.'
+      return 1
+    }
+  else
+    lib::log::red 'dns_lookup requires getent or nslookup.'
+    return 1
+  fi
+
+  while IFS= read -r line; do
+    if [[ $backend == nslookup ]]; then
+      case $line in
+        Name:*)
+          in_answer=1
+          continue
+          ;;
+        Address:* | Addresses:*)
+          [[ $in_answer == 1 ]] || continue
+          line=${line#*:}
+          ;;
+        *) continue ;;
+      esac
+    fi
+
+    IFS=$' \t' read -r address _ <<<"$line"
+    lib::net::ip_validate "$address" || continue
+    if [[ $seen != *$'\n'"$address"$'\n'* ]]; then
+      output+="$address"$'\n'
+      seen+="$address"$'\n'
+    fi
+  done <<<"$response"
+
+  if [[ -z $output ]]; then
+    lib::log::red 'Hostname lookup returned no IP addresses.'
+    return 1
+  fi
+
+  printf '%s' "$output"
+}
+
+#######################################
+# Probe HTTP(S) with one GET, accepting only 2xx responses.
+# TLS verification stays enabled. Redirects are opt-in, capped at five, and
+# cannot downgrade HTTPS to HTTP. The total timeout includes redirects.
+# The URL is supplied to curl on stdin; response bodies and curl diagnostics
+# are discarded. Proxy and trust-store environment settings remain effective.
+# Globals:
+#   PATH and curl proxy/trust environment (read)
+# Arguments:
+#   1 - HTTP(S) URL
+#   2+ - Optional --timeout SECONDS (positive integer, default 10),
+#        -f or --follow-redirects
+# Outputs:
+#   Final HTTP status without a newline on HTTP completion, even if rejected;
+#   sanitized errors on stderr. No status on transport failure.
+# Returns:
+#   0 accepted 2xx, 1 rejected HTTP status, 2 invalid invocation/URL,
+#   3 missing curl or transport/TLS/timeout failure. Never exits.
+# Dependencies:
+#   curl, checked only at invocation.
+#######################################
+function lib::net::http_probe() {
+  [[ $# -ge 1 ]] || return 2
+  local url=$1 timeout status scheme redirects
+  local -A __libsh_net_uri=()
+  # Parser inputs are consumed through Bash dynamic scope.
+  # shellcheck disable=SC2034
+  local -a OPTS=('--timeout,:timeout:1:optional' '-f,--follow-redirects:follow:0:optional')
+  # shellcheck disable=SC2034
+  local -A OPTS_HELP=([timeout]='Total timeout in seconds' [follow]='Follow at most five redirects') OPTS_VALUES=()
+  local -a options=()
+
+  shift
+  lib::opt::parse ${1+"$@"} || return 2
+  timeout=$(__libsh_net_decimal "${OPTS_VALUES[timeout]:-10}" 86400 1) || return 2
+  if ! __libsh_net_uri_split "$url" http; then
+    lib::log::red 'http_probe requires an HTTP(S) URL with a valid host.'
+    return 2
+  fi
+
+  scheme=${__libsh_net_uri[scheme],,}
+  case $scheme in
+    http) redirects='=http,https' ;;
+    https) redirects='=https' ;;
+    *)
+      lib::log::red 'http_probe supports only HTTP and HTTPS.'
+      return 2
+      ;;
+  esac
+  if [[ ${OPTS_VALUES[follow]:-0} == 1 ]]; then
+    options+=(--location)
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    lib::log::red 'http_probe requires curl.'
+    return 3
+  fi
+
+  # Validated URI text cannot contain quotes, backslashes or literal newlines,
+  # so it remains one quoted config value without exposing it in curl argv.
+  status=$(curl --disable --silent --globoff --output /dev/null \
+    --write-out '%{http_code}' --connect-timeout "$timeout" --max-time "$timeout" \
+    --proto '=http,https' --proto-redir "$redirects" --max-redirs 5 \
+    ${options[@]+"${options[@]}"} --config - <<<"url = \"$url\"" 2>/dev/null) || {
+    lib::log::red 'HTTP transport failed.'
+    return 3
+  }
+
+  if [[ ! $status =~ ^[1-5][0-9][0-9]$ ]]; then
+    lib::log::red 'HTTP transport returned no valid status.'
+    return 3
+  fi
+
+  printf '%s' "$status"
+  [[ $status == 2* ]]
 }

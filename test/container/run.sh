@@ -24,4 +24,5 @@ if ext::secret::read_file denied /run/secrets/denied; then exit 1; fi
 export REPO_ROOT=/opt/libsh-test
 bash "$REPO_ROOT/test/bats/core/bin/bats" "$REPO_ROOT/test/extensions/secret.bats" "$REPO_ROOT/test/lib" "$REPO_ROOT/test/bin/libman.bats"
 bash "$REPO_ROOT/test/integration/tcp.sh" /usr/local/lib/libsh/lib.sh
+bash "$REPO_ROOT/test/integration/http.sh" /usr/local/lib/libsh/lib.sh
 printf 'Container verification passed with Bash %s.\n' "$BASH_VERSION"
