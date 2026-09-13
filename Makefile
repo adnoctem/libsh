@@ -42,7 +42,7 @@ export PROJ_NAME = $(shell basename "$(ROOT_DIR)")
 # ---------------------------
 # Constants
 # ---------------------------
-VERSION := 0.5.0
+VERSION := 0.6.0
 
 # Build output
 OUT_DIR := $(ROOT_DIR)/dist

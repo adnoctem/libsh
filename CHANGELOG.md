@@ -1,3 +1,42 @@
+## [0.6.0](https://github.com/adnoctem/libsh/compare/v0.5.0...v0.6.0) (2026-09-13)
+
+### ⚠ BREAKING CHANGES
+
+* **lib:** Remove color and timed logging wrappers in favor of
+intent emitters. Intent output includes UTC timestamps; warnings use
+stderr. Raw print, plain, and write remain available.
+* **lib:** venv creation now refuses existing incomplete paths
+instead of attempting to repair them.
+* **lib:** rename lib::net::is_ipv4 and lib::net::is_ipv6 to
+lib::net::ipv4_validate and lib::net::ipv6_validate.
+* **lib:** move os::ensure_existence and os::ensure_directory
+to fs::ensure_existence and fs::ensure_directory.
+* **lib:** add shared primitives for phase two
+* **lib:** Module paths and public namespaces have changed.
+Source lib/lib.sh for core and call lib::load_extensions for explicitly
+installed addons. The libtree default layout is now
+scripts/libsh/{lib,extensions}.
+
+### Features
+
+* **lib:** add filesystem hashing and comparison helpers ([c99dbe8](https://github.com/adnoctem/libsh/commit/c99dbe8e3e09eee59e22a446a7f60bd135156a86))
+* **lib:** add networking parsers and probes ([15600d6](https://github.com/adnoctem/libsh/commit/15600d60f4dfce9e5582e9d9f41e0145bebdb61d))
+* **lib:** add OS inspection and account management ([c9de769](https://github.com/adnoctem/libsh/commit/c9de769530764ba0737d2c191a74b43cbd37662b))
+* **lib:** add shared primitives for phase two ([f5d0acd](https://github.com/adnoctem/libsh/commit/f5d0acd192b4df9b3318b5f9c3a18c9cb60df25d))
+* **lib:** add staged file editing and file logging ([d0d5c8c](https://github.com/adnoctem/libsh/commit/d0d5c8c7182ccb9790c4aa5a4cc795a17df3dd3d))
+* **lib:** complete phase 2 extensions and API reference ([8e2a727](https://github.com/adnoctem/libsh/commit/8e2a72784471065500a2b5d8fcdb54227b2c89ff))
+* **lib:** introduce intent-based logging and shared UTC timestamps ([b297349](https://github.com/adnoctem/libsh/commit/b297349d8453590eb43ce045601b0223faff47f3))
+* **lib:** support environment preservation in root_exec ([373d255](https://github.com/adnoctem/libsh/commit/373d25517d8a55bdb8e82c7b58d32594030f83c2))
+
+### Bug Fixes
+
+* **lib:** reject recursive directory cycles on macOS ([0c7ae4d](https://github.com/adnoctem/libsh/commit/0c7ae4d11381d4c23825fccab6be07fe2ae50bab))
+* **test:** correct macOS metadata assertion and CI terminology ([73c0c3f](https://github.com/adnoctem/libsh/commit/73c0c3fe8391f8d104a6d87ccd884dd0b76a00be))
+
+### Code Refactoring
+
+* **lib:** split core modules from optional extensions ([e76d8bd](https://github.com/adnoctem/libsh/commit/e76d8bd6b934a8a02e98f11da35ae832eb6b56db))
+
 ## [0.5.0](https://github.com/adnoctem/libsh/compare/v0.4.0...v0.5.0) (2026-09-11)
 
 ### Features
